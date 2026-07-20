@@ -6,7 +6,7 @@ A personal document Q&A system ("second brain") that ingests personal knowledge 
 
 **Owner:** Single user (personal tool)
 **Status:** Draft
-**Last updated:** 2026-07-19
+**Last updated:** 2026-07-20
 
 ## 2. Problem Statement
 
@@ -48,10 +48,10 @@ Single user. Representative queries:
 |---|---|
 | Orchestration | LangChain (TypeScript / `langchain` + `@langchain/mongodb`) |
 | Vector store | MongoDB Atlas Vector Search (`MongoDBAtlasVectorSearch`) |
-| Metadata + filtering | Same MongoDB collection — metadata fields alongside embeddings |
+| Metadata + filtering | Documents collection resolves filters; chunks collection carries embeddings |
 | Observability | LangSmith — traces every retrieval and generation |
 | LLM | Claude (via `@langchain/anthropic`), model: `claude-sonnet-4-6` (configurable) |
-| Embeddings | Configurable (e.g. `voyage-3` or `text-embedding-3-small`) |
+| Embeddings | Voyage AI `voyage-3.5` (native Anthropic-recommended provider; Matryoshka truncation + quantization supported) |
 | Runtime | Node.js / TypeScript |
 
 ### 5.2 Data flow
@@ -64,9 +64,7 @@ Single user. Representative queries:
   Kindle notes ► │                                            │
                  └───────────────────┬────────────────────────┘
                                      ▼
-                 MongoDB Atlas (single collection)
-                 { embedding, text, metadata: { type, title,
-                   source, language, page, createdAt, ... } }
+              MongoDB Atlas — two collections (documents, chunks)
                                      ▲
                                      │ vector search + metadata pre-filter
                  ┌───────────────────┴────────────────────────┐
@@ -77,33 +75,46 @@ Single user. Representative queries:
                      (retrieval sets, prompts, outputs)
 ```
 
-### 5.3 Document schema (MongoDB)
+### 5.3 Schema (MongoDB — Document/Chunk model)
+
+Two collections, per the domain model (see [CONTEXT.md](./CONTEXT.md)): `documents` (one record per ingested source thing — PDF, recipe, day's fitness note, Kindle book) and `chunks` (one record per searchable piece of exactly one Document, carrying the embedding). Chunks reference their parent Document by `documentId`; re-ingestion updates a Document and its Chunks in place (idempotent upsert, FR-1.5), keeping citations stable.
 
 ```jsonc
+// documents collection
 {
   "_id": "...",
+  "type": "recipe" | "fitness" | "kindle" | "pdf",
+  "title": "Sourdough Bread v3",                // or Book title for kindle
+  "source": "recipes/sourdough-v3.md",           // path or origin
+  "language": "en" | "tr" | ...,
+  "author": "James Clear",                       // kindle only
+  "date": "2026-07-19",                          // fitness only, from filename
+  "sourceArtifact": "artifacts/sourdough-v3.jpg", // recipes/fitness: photo/voice origin, if any
+  "contentHash": "...",                          // idempotent re-ingestion
+  "ingestedAt": "2026-07-19T...",
+  "updatedAt": "2026-07-19T..."
+}
+
+// chunks collection
+{
+  "_id": "...",
+  "documentId": "...",       // parent Document, always required
   "text": "chunk content",
   "embedding": [/* vector */],
-  "metadata": {
-    "type": "recipe" | "fitness" | "kindle" | "pdf",   // category filter
-    "title": "Sourdough Bread v3",
-    "source": "recipes/sourdough-v3.md",                // path or origin
-    "language": "en" | "tr" | ...,
-    "page": 12,                    // PDFs only
-    "book": "Atomic Habits",       // kindle only
-    "author": "James Clear",       // kindle only
-    "highlightDate": "2026-05-01", // kindle only
-    "chunkIndex": 3,
-    "ingestedAt": "2026-07-19T..."
-  }
+  "chunkIndex": 3,
+  "page": 12,                    // PDFs only
+  "highlightDate": "2026-05-01", // kindle only — this highlight's date, not the Book's
+  "createdAt": "2026-07-19T..."
 }
 ```
 
+Citations and generation join back to `documents` via `chunks.documentId` for `type`/`title`/`source`/`author`; type/date/book filters (FR-2.2) resolve against `documents` before the vector search runs.
+
 ### 5.4 Atlas Vector Search index
 
-- Vector index on `embedding` (cosine similarity, dims per embedding model).
-- Filter fields indexed: `metadata.type`, `metadata.language`, `metadata.book`.
-- Retrieval uses Atlas **pre-filtering** (`$vectorSearch.filter`) so category filters narrow the search space before ANN, not after.
+- Vector index on `chunks.embedding` (cosine similarity, dims per embedding model).
+- Filter fields indexed on `chunks`: `documentId`, `page`, `highlightDate`. Type/language/book/date-range filters resolve to a set of `documentId`s first (fast metadata query against `documents`), then vector search pre-filters `chunks` by `documentId in [...]`.
+- Retrieval uses Atlas **pre-filtering** (`$vectorSearch.filter`) so the resolved `documentId` set narrows the search space before ANN, not after.
 
 ## 6. Functional Requirements
 
@@ -120,14 +131,14 @@ Single user. Representative queries:
 ### FR-2: Retrieval
 
 - **FR-2.1** Vector similarity search (top-k, default k=6) via `MongoDBAtlasVectorSearch`.
-- **FR-2.2** Metadata pre-filtering by `type`, `language`, and `book` — user-specifiable or inferred from the query (e.g. "recipe" in question → filter `type=recipe`).
+- **FR-2.2** Metadata pre-filtering by `type`, `language`, `book`, and date range. Filters come from an LLM pre-step (structured output: `{type?, dateRange?, book?}`) behind a `FILTER_MODEL` config (default: local Qwen3-8B via Ollama; swappable to Haiku/others). Explicit CLI flags always override inference; when the model is unsure it must return no filter (search everything); the inferred filter is logged in every LangSmith trace.
 - **FR-2.3** Return chunk text + full metadata for citation construction.
 
 ### FR-3: Generation & Citations
 
 - **FR-3.1** Answer generated **only** from retrieved chunks; system prompt forbids outside knowledge.
-- **FR-3.2** Every answer lists citations: `[title, type, source, page/highlight ref]`.
-- **FR-3.3** If retrieval yields no sufficiently relevant chunks (score threshold), respond "I don't have information about that in your documents" — never fabricate.
+- **FR-3.2** Citations via Anthropic's native Citations API (`citations.enabled: true` on retrieved chunks passed as documents) — not a custom post-hoc formatting step. Claude's response returns per-sentence citation objects (`cited_text`, `document_title`, location range); rendered inline as numbered markers `[1]` with a reference list mapping each to `document_title` (from the parent Document's `type`/`title`/`source`) + the type-specific ref (page for PDF, highlight date for kindle, etc., from FR-2.3/§5.3 metadata) + `cited_text` shown on demand.
+- **FR-3.3** "I don't know" gate, three layers: (1) cheap score pre-filter skips generation on near-empty retrieval; (2) after generation, a groundedness/faithfulness check verifies each claim in the draft answer is entailed by the retrieved chunks — unsupported claims trigger abstention ("I don't have information about that in your documents") instead of returning the draft; (3) the same groundedness check runs offline in LangSmith (FR-5.3) against the eval set — including ~5 deliberately unanswerable questions — to tune thresholds and measure false-confidence rate. Never fabricate.
 - **FR-3.4** Answers in the language of the question when source language allows.
 
 ### FR-4: Query Interface
@@ -139,7 +150,7 @@ Single user. Representative queries:
 
 - **FR-5.1** Every query produces a LangSmith trace covering: input question, applied filters, retrieved chunks + scores, final prompt, generation output.
 - **FR-5.2** Traces tagged with `type` filter and answer/no-answer outcome for filtering in the LangSmith UI.
-- **FR-5.3** Groundedness evaluation: LangSmith evaluator (LLM-as-judge) scoring whether the answer is supported by retrieved chunks; run on a curated eval dataset (~20–30 Q/A pairs) on demand.
+- **FR-5.3** Groundedness/faithfulness evaluation: LangSmith evaluator (LLM-as-judge, same check used inline per FR-3.3) scoring whether each claim in the answer is supported by retrieved chunks; run on a curated eval dataset (~20–30 Q/A pairs, incl. ~5 deliberately unanswerable) on demand.
 
 ## 7. Non-Functional Requirements
 
@@ -185,6 +196,4 @@ Single user. Representative queries:
 
 ## 11. Open Questions
 
-- Embedding model choice: multilingual (Voyage / Cohere) vs OpenAI — depends on how much non-English content exists.
-- Should query-time category inference be an LLM pre-step (self-query retriever) or simple keyword rules in v1?
 - Conversation memory in v1 CLI or defer entirely to v1.1?

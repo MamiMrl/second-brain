@@ -46,16 +46,23 @@ Decided in grilling sessions (interview-driven design):
 3. **Recipes via transcription pipeline** — photo or voice dictation → draft Markdown → human review/confirm → ingest. Photos/audio are Source Artifacts, never searched directly.
 4. **Fitness: one Markdown file per day** (`fitness/YYYY-MM-DD.md`), free-form, date from filename. No structured schema in v1.
 5. **Fitness scope v1:** date-aware retrieval only — no counts/PRs/trends (those are v2, via structured extraction). Exception: workout-day counts work via plain metadata queries.
+6. **Query-time filter inference:** LLM pre-step extracts `{type?, dateRange?, book?}` from the question (local Qwen3-8B via Ollama by default, `FILTER_MODEL`-configurable). Explicit CLI flags always override; unsure → no filter (search everything); inferred filter logged in every LangSmith trace.
+7. **"I don't know" gate:** cheap score pre-filter (skip generation on near-empty retrieval) → per-claim groundedness/faithfulness check on the draft answer (LLM/NLI judge verifies each claim is entailed by retrieved chunks; unsupported → abstain) → same check reused offline in LangSmith against an eval set (incl. ~5 deliberately unanswerable questions) to tune thresholds.
+8. **Citations via Anthropic's native Citations API**, not a custom formatting step — matches the industry-standard pattern (Perplexity/Notion-style inline numbered per-sentence citations). Claude returns `cited_text` + `document_title` + location per sentence; rendered as `[1]` markers with a reference list.
+9. **Embedding model: Voyage AI `voyage-3.5`** — the practitioner-standard default for Claude-based RAG stacks (Anthropic's recommended embedding partner, native MongoDB Atlas integration, Matryoshka truncation + quantization support, strong multilingual quality).
 
-**Open / next up:** query-time filter inference (explicit flags vs keyword rules vs LLM pre-step — leaning LLM pre-step with explicit override), embedding model choice, conversation memory scope.
+**Open / next up:** conversation memory scope (v1 CLI vs v1.1), ingestion CLI details, eval dataset design, milestone ordering.
 
 ## Getting started
 
-Nothing to run yet. Once M1 lands:
+M1 skeleton is in place: TS project, dependencies, and an embed → store → vector-search round-trip script against dummy data.
 
 ```sh
 npm install
-cp .env.example .env   # Atlas URI, Anthropic + LangSmith keys
-npm run ingest -- <path> --type <recipe|fitness|kindle|pdf>
-npm run ask -- "what was my deadlift plan in March?"
+cp .env.example .env   # fill in Atlas URI, Anthropic + Voyage + LangSmith keys
+npm run typecheck
+npm run roundtrip       # requires an Atlas vector index named "roundtrip_vector_index"
+                        # on the roundtrip_chunks collection (field: embedding, cosine, dim 1024)
 ```
+
+Ingestion and query CLIs (`npm run ingest`, `npm run ask`) land in M2/M3 — not built yet.
