@@ -22,7 +22,7 @@ Personal knowledge is scattered across PDFs, recipe collections, fitness logs, a
 
 ### Non-Goals (v1)
 
-- Multi-user support, auth, or sharing.
+- Multi-user support, auth, or sharing. *(Deferred, not rejected — see §9.1 "Multi-user & horizontal scaling" for what changes if this becomes a multi-user product later.)*
 - Real-time sync from Kindle/other services (manual export/import is fine).
 - Mobile app or browser extension.
 - Editing/managing documents inside the app (filesystem/DB is source of truth).
@@ -124,9 +124,10 @@ Citations and generation join back to `documents` via `chunks.documentId` for `t
 - **FR-1.2** Ingest recipes (Markdown/text): one document per recipe; keep recipe title, ingredients/steps structure in metadata where possible.
 - **FR-1.3** Ingest fitness notes (Markdown/text): date-aware metadata for temporal queries.
 - **FR-1.4** Ingest Kindle notes: parse Kindle export (`My Clippings.txt` or HTML export); one chunk per highlight; capture book, author, highlight date.
-- **FR-1.5** Idempotent re-ingestion: re-running on the same file updates rather than duplicates (content-hash or source-path based upsert).
+- **FR-1.5** Idempotent re-ingestion via LangChain's Indexing API (`RecordManager`): content hash + source ID + write time per record; re-running on unchanged content is a no-op. Cleanup mode: `incremental` (delete stale records per source ID as it's re-ingested) as the v1 default — minimizes any window where duplicate content is visible to retrieval, vs. `full`'s end-of-run cleanup.
 - **FR-1.6** Language detection per document, stored as `metadata.language`.
-- **FR-1.7** CLI command: `ingest <path> --type <recipe|fitness|kindle|pdf>`.
+- **FR-1.7** CLI command: `ingest <path> [--type <recipe|fitness|kindle|pdf>]`. `<path>` may be a file or a directory (recursive, native — not a shell-loop responsibility). `--type` is an optional override; default is auto-detection by file extension (Markdown → recipe/fitness by path convention, `.txt`/`.html` Kindle export format → kindle, `.pdf` → pdf).
+- **FR-1.8** Batch ingestion aborts on first failure (fail-fast, no partial/best-effort runs) with an actionable, error-type-specific message rather than a raw stack trace. Known cases handled explicitly: PDF password-protected, PDF corrupted/truncated, PDF scanned/image-only (no extractable text), Kindle export unrecognized format, Kindle export non-UTF8/BOM encoding, fitness filename not matching `YYYY-MM-DD.md`, empty file, file not found, permission denied.
 
 ### FR-2: Retrieval
 
@@ -151,6 +152,7 @@ Citations and generation join back to `documents` via `chunks.documentId` for `t
 - **FR-5.1** Every query produces a LangSmith trace covering: input question, applied filters, retrieved chunks + scores, final prompt, generation output.
 - **FR-5.2** Traces tagged with `type` filter and answer/no-answer outcome for filtering in the LangSmith UI.
 - **FR-5.3** Groundedness/faithfulness evaluation: LangSmith evaluator (LLM-as-judge, same check used inline per FR-3.3) scoring whether each claim in the answer is supported by retrieved chunks; run on a curated eval dataset (~20–30 Q/A pairs, incl. ~5 deliberately unanswerable) on demand.
+- **FR-5.4** Eval dataset authoring: hybrid — candidates LLM-generated from the actual ingested corpus (RAGAS-style), then human-reviewed/edited/rejected before being locked in as ground truth (target: >95% spot-check acceptance rate, else regenerate the batch). Each example carries question + reference answer + reference chunk(s)/document(s) (not answer alone), so retrieval hit rate and generation faithfulness can be scored independently.
 
 ## 7. Non-Functional Requirements
 
@@ -183,6 +185,7 @@ Citations and generation join back to `documents` via `chunks.documentId` for `t
 - **Fitness analytics (v2):** structured extraction of exercises/weights/bodyweight at ingest, enabling exact answers to counts, PRs, and trends ("how many workout days this year", "deadlift PR", weight graphs). V1 explicitly declines these with "date-aware retrieval only"; the sole exact query in v1 is workout-day counts via a metadata query on fitness Documents.
 - **Fitness capture (v2):** design a low-friction logging path — candidate: a dedicated app with export/API (e.g. Strong/Hevy) connected via API, or dictation-first flow feeding the transcription pipeline. Paper should not be the required medium.
 - **Weekly-plan integration (later):** the voice-transcription app used for weekly planning could feed fitness notes automatically.
+- **Multi-user & horizontal scaling (later, if this becomes a shared product):** the production-fundamentals deferred by the v1 Non-Goals — auth/authz, per-user data isolation, rate limiting, circuit breakers, stateless service design for horizontal scaling, backup/DR, GDPR/CCPA compliance — become required if a second user ever exists. Architecture note for that future: keep the RAG chain (retrieve → generate) and CLI layer decoupled enough that the chain could sit behind a stateless API service later without a rewrite; avoid baking single-user assumptions (e.g. a single global `.env`, no `userId` on Documents/Chunks) any deeper than necessary.
 
 ## 10. Risks & Mitigations
 
@@ -196,4 +199,4 @@ Citations and generation join back to `documents` via `chunks.documentId` for `t
 
 ## 11. Open Questions
 
-- Conversation memory in v1 CLI or defer entirely to v1.1?
+*(none — all resolved as of 2026-07-21)*

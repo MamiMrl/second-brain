@@ -50,8 +50,12 @@ Decided in grilling sessions (interview-driven design):
 7. **"I don't know" gate:** cheap score pre-filter (skip generation on near-empty retrieval) → per-claim groundedness/faithfulness check on the draft answer (LLM/NLI judge verifies each claim is entailed by retrieved chunks; unsupported → abstain) → same check reused offline in LangSmith against an eval set (incl. ~5 deliberately unanswerable questions) to tune thresholds.
 8. **Citations via Anthropic's native Citations API**, not a custom formatting step — matches the industry-standard pattern (Perplexity/Notion-style inline numbered per-sentence citations). Claude returns `cited_text` + `document_title` + location per sentence; rendered as `[1]` markers with a reference list.
 9. **Embedding model: Voyage AI `voyage-3.5`** — the practitioner-standard default for Claude-based RAG stacks (Anthropic's recommended embedding partner, native MongoDB Atlas integration, Matryoshka truncation + quantization support, strong multilingual quality).
+10. **Conversation memory deferred to v1.1** — v1 CLI (`ask`) stays strictly single-shot, no session state. Memory (query rewriting for follow-ups, session state) is scoped alongside the v1.1 UI/REPL work as its own iterative story once v1 is built and tested.
+11. **Ingestion CLI: directory-native, auto-detected type, RecordManager dedup** — `ingest <path>` accepts a file or directory (recursive), matching the standard LangChain `DirectoryLoader`/LlamaIndex/Unstructured.io pattern rather than pushing batching to shell loops. `--type` becomes an optional override (Haystack `FileTypeRouter` precedent: extension-based auto-detect by default). Idempotent re-ingestion (FR-1.5) uses LangChain's own Indexing API (`RecordManager`, content-hash + source-ID dedup) with `incremental` cleanup mode as the v1 default.
+12. **Ingestion errors abort the batch, with actionable messages** (FR-1.8) — no silent partial/best-effort runs; known failure modes (encrypted/corrupt/image-only PDFs, unrecognized Kindle export format/encoding, malformed fitness filenames, empty files) get specific fix-it messages instead of a raw stack trace.
+13. **Multi-user/horizontal-scaling readiness deferred, not rejected** — v1 stays single-user, but architecture keeps the RAG chain decoupled from the CLI so it could sit behind a stateless API later; see PRD §9.1 for what auth/scaling/compliance work would be needed if this ever becomes a multi-user product.
 
-**Open / next up:** conversation memory scope (v1 CLI vs v1.1), ingestion CLI details, eval dataset design, milestone ordering.
+**Open / next up:** eval dataset design, milestone ordering.
 
 ## Getting started
 
