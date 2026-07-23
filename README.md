@@ -2,7 +2,7 @@
 
 A personal document Q&A system that ingests PDFs, food recipes, fitness notes, and Kindle highlights, then answers natural-language questions with source citations — grounded strictly in your own content.
 
-> **Status: design phase.** No code yet. The domain model and requirements are being hammered out through interview sessions; see [Design docs](#design-docs).
+> **Status:** design is locked — all PRD grilling branches resolved (see [Design docs](#design-docs)). M1 skeleton is implemented (see [Getting started](#getting-started)); M2 onward (ingestion/query CLIs) is next.
 
 ## What it will do
 
@@ -54,8 +54,11 @@ Decided in grilling sessions (interview-driven design):
 11. **Ingestion CLI: directory-native, auto-detected type, RecordManager dedup** — `ingest <path>` accepts a file or directory (recursive), matching the standard LangChain `DirectoryLoader`/LlamaIndex/Unstructured.io pattern rather than pushing batching to shell loops. `--type` becomes an optional override (Haystack `FileTypeRouter` precedent: extension-based auto-detect by default). Idempotent re-ingestion (FR-1.5) uses LangChain's own Indexing API (`RecordManager`, content-hash + source-ID dedup) with `incremental` cleanup mode as the v1 default.
 12. **Ingestion errors abort the batch, with actionable messages** (FR-1.8) — no silent partial/best-effort runs; known failure modes (encrypted/corrupt/image-only PDFs, unrecognized Kindle export format/encoding, malformed fitness filenames, empty files) get specific fix-it messages instead of a raw stack trace.
 13. **Multi-user/horizontal-scaling readiness deferred, not rejected** — v1 stays single-user, but architecture keeps the RAG chain decoupled from the CLI so it could sit behind a stateless API later; see PRD §9.1 for what auth/scaling/compliance work would be needed if this ever becomes a multi-user product.
+14. **Eval dataset authoring: hybrid LLM-generate + human-review** (FR-5.4) — candidates synthesized from the real ingested corpus (RAGAS-style), spot-checked by hand before being locked in as ground truth. Each example carries reference chunk(s) alongside the reference answer, so retrieval and generation are scored independently.
+15. **Eval dataset storage: JSONL in repo, synced to LangSmith** (FR-5.5) — `eval/dataset.jsonl` is the source of truth (git-versioned, matches the "repo not DB" portability principle already in NFRs); a sync script pushes it to a LangSmith Dataset for running experiments. LangSmith is a mirror, not canonical. Open to revisiting if this creates drift/friction in practice.
+16. **Existence/negation queries get a confident answer, not a generic abstain** (FR-2.4) — "Do I have a recipe with quinoa?" when you don't shouldn't return "I don't have information about that" (that's for genuine unknowns, FR-3.3); vector similarity can't prove absence, so the query-classification pre-step (FR-2.2) detects existence/negation intent and routes it to an exhaustive scan over the bounded category instead of top-k retrieval. This is a third, distinct eval-set category (FR-5.4) — confirmed-absence is not the same as unanswerable.
 
-**Open / next up:** eval dataset design, milestone ordering.
+**All grilling branches resolved.** Next work is implementation (M2 onward), not further design interviews.
 
 ## Getting started
 
