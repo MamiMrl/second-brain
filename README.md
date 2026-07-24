@@ -2,7 +2,19 @@
 
 A personal document Q&A system that ingests PDFs, food recipes, fitness notes, and Kindle highlights, then answers natural-language questions with source citations — grounded strictly in your own content.
 
-> **Status:** design is locked — all PRD grilling branches resolved (see [Design docs](#design-docs)). M1 skeleton is implemented (see [Getting started](#getting-started)); M2 onward (ingestion/query CLIs) is next.
+> **Status:** design is locked — all PRD grilling branches resolved (see [Design docs](#design-docs)). M1 skeleton and M2 ingestion are implemented (see [Getting started](#getting-started)); M3 onward (query CLI) is next.
+
+## Table of contents
+
+- [What it will do](#what-it-will-do)
+- [Stack (planned)](#stack-planned)
+- [Core domain model](#core-domain-model)
+- [Design docs](#design-docs)
+- [Design decisions so far](#design-decisions-so-far)
+- [Getting started](#getting-started)
+  - [Ingesting documents](#ingesting-documents)
+- [Contributing](#contributing)
+- [License](#license)
 
 ## What it will do
 
@@ -58,11 +70,11 @@ Decided in grilling sessions (interview-driven design):
 15. **Eval dataset storage: JSONL in repo, synced to LangSmith** (FR-5.5) — `eval/dataset.jsonl` is the source of truth (git-versioned, matches the "repo not DB" portability principle already in NFRs); a sync script pushes it to a LangSmith Dataset for running experiments. LangSmith is a mirror, not canonical. Open to revisiting if this creates drift/friction in practice.
 16. **Existence/negation queries get a confident answer, not a generic abstain** (FR-2.4) — "Do I have a recipe with quinoa?" when you don't shouldn't return "I don't have information about that" (that's for genuine unknowns, FR-3.3); vector similarity can't prove absence, so the query-classification pre-step (FR-2.2) detects existence/negation intent and routes it to an exhaustive scan over the bounded category instead of top-k retrieval. This is a third, distinct eval-set category (FR-5.4) — confirmed-absence is not the same as unanswerable.
 
-**All grilling branches resolved.** Next work is implementation (M2 onward), not further design interviews.
+**All grilling branches resolved.** Next work is implementation (M3 onward — query CLI), not further design interviews.
 
 ## Getting started
 
-M1 skeleton is in place: TS project, dependencies, and an embed → store → vector-search round-trip script against dummy data.
+M1 skeleton (embed → store → vector-search round-trip) and M2 ingestion (`ingest` CLI) are both in place.
 
 ```sh
 npm install
@@ -72,4 +84,39 @@ npm run roundtrip       # requires an Atlas vector index named "roundtrip_vector
                         # on the roundtrip_chunks collection (field: embedding, cosine, dim 1024)
 ```
 
-Ingestion and query CLIs (`npm run ingest`, `npm run ask`) land in M2/M3 — not built yet.
+### Ingesting documents
+
+`npm run ingest` requires a second Atlas Search vector index, on the real `chunks` collection this time:
+
+- Collection: `chunks`
+- Index name: `chunks_vector_index`
+- Definition:
+  ```json
+  {
+    "fields": [
+      { "type": "vector", "path": "embedding", "numDimensions": 1024, "similarity": "cosine" }
+    ]
+  }
+  ```
+
+Once that index exists:
+
+```sh
+npm run ingest -- <path> [--type <recipe|fitness|kindle|pdf>]
+```
+
+- `<path>` can be a single file or a directory (walked recursively).
+- Type is auto-detected from extension/path convention (`.pdf` → pdf, `.md` under a `recipes/`or `fitness/` folder → recipe/fitness, `.txt`/`.html` → kindle); `--type` overrides detection.
+- Kindle ingestion (FR-1.4) isn't implemented yet — that's M4.
+- Re-running `ingest` on the same path is idempotent (content-hash based, via LangChain's Indexing API `RecordManager`): unchanged files are skipped, changed files are updated, and chunks removed from a source are cleaned up.
+- Ingestion is fail-fast: if any file in a batch fails to parse, nothing in that batch is written to Mongo.
+
+Query CLI (`npm run ask`) lands in M3 — not built yet.
+
+## Contributing
+
+This is a personal, single-maintainer project — see [CONTRIBUTING.md](./CONTRIBUTING.md) for the (short) ground rules if you're forking it or opening a PR.
+
+## License
+
+[ISC](./LICENSE) © Muhammed Maral

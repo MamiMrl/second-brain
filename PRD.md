@@ -51,7 +51,7 @@ Single user. Representative queries:
 | Vector store | MongoDB Atlas Vector Search (`MongoDBAtlasVectorSearch`) |
 | Metadata + filtering | Documents collection resolves filters; chunks collection carries embeddings |
 | Observability | LangSmith — traces every retrieval and generation |
-| LLM | Claude (via `@langchain/anthropic`), model: `claude-sonnet-4-6` (configurable) |
+| LLM | Claude (via `@langchain/anthropic`), model: `claude-haiku-4-5-20251001` (configurable; cheapest model, chosen for hobby-project cost — swap to Sonnet if quality on cross-document queries disappoints) |
 | Embeddings | Voyage AI `voyage-3.5` (native Anthropic-recommended provider; Matryoshka truncation + quantization supported) |
 | Runtime | Node.js / TypeScript |
 
