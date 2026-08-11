@@ -7,7 +7,8 @@
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "roundtrip": "tsx src/scripts/roundtrip.ts",
-    "ingest": "tsx src/scripts/ingest.ts"
+    "ingest": "tsx src/scripts/ingest.ts",
+    "ask": "tsx src/scripts/ask.ts"
   },
   "repository": {
     "type": "git",
