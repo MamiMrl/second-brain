@@ -52,7 +52,7 @@ Single user. Representative queries:
 | Metadata + filtering | Documents collection resolves filters; chunks collection carries embeddings |
 | Observability | LangSmith — traces every retrieval and generation |
 | LLM | Claude (via `@langchain/anthropic`), model: `claude-haiku-4-5-20251001` (configurable; cheapest model, chosen for hobby-project cost — swap to Sonnet if quality on cross-document queries disappoints) |
-| Embeddings | Voyage AI `voyage-3.5` (native Anthropic-recommended provider; Matryoshka truncation + quantization supported) |
+| Embeddings | Voyage AI `voyage-4-lite` (native Anthropic-recommended provider; cheapest current-generation model — $0.02/M tokens, 200M free — chosen over `voyage-3.5` after that line was moved to Voyage's legacy pricing tier; Matryoshka truncation + quantization supported) |
 | Agentic layer (M7) | Claude Agent SDK (`@anthropic-ai/claude-agent-sdk`) — standalone from the LangChain/LangGraph retrieval pipeline above; powers the nutrition-recommendation agent only (FR-7.x) |
 | Runtime | Node.js / TypeScript |
 
@@ -66,7 +66,7 @@ flowchart TD
         CLI_ING["ingest &lt;path&gt; [--type override]<br/>file or directory, recursive<br/>type auto-detected by extension (FR-1.7)"]
         LOAD["Type-specific loader<br/>PDF (page-aware) / Markdown / Kindle clippings parser (FR-1.1-1.4)"]
         CHUNK["Chunk + detect language (FR-1.6)<br/>~800-1200 tok / per-recipe / per-day / per-highlight"]
-        EMBED["Embed — Voyage AI voyage-3.5"]
+        EMBED["Embed — Voyage AI voyage-4-lite"]
         UPSERT["RecordManager idempotent upsert<br/>content-hash + source ID, incremental cleanup (FR-1.5)"]
         FAIL["Fail-fast on parse error<br/>actionable message, abort batch (FR-1.8)"]
 

@@ -11,7 +11,7 @@ import { VoyageEmbeddings } from "../lib/voyage-embeddings.js";
 // Requires (see .env.example):
 //   - an Atlas cluster with a vector search index named "roundtrip_vector_index"
 //     on the `roundtrip_chunks` collection, indexing the `embedding` field
-//     (cosine similarity, dimension 1024 for voyage-3.5's default output)
+//     (cosine similarity, dimension 1024 for voyage-4-lite's default output)
 //   - ANTHROPIC_API_KEY is not needed here — this script only exercises
 //     embeddings + retrieval, not generation
 

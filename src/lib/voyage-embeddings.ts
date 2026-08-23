@@ -1,7 +1,7 @@
 import { Embeddings, type EmbeddingsParams } from "@langchain/core/embeddings";
 import { VoyageAIClient } from "voyageai";
 
-// PRD Q9: voyage-3.5, via the official Voyage SDK directly — @langchain/community's
+// PRD Q9: voyage-4-lite, via the official Voyage SDK directly — @langchain/community's
 // wrapper is deprecated (https://github.com/langchain-ai/langchainjs-community/issues/61)
 // and no first-party @langchain/voyage package exists yet.
 export class VoyageEmbeddings extends Embeddings {
