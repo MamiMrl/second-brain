@@ -99,6 +99,12 @@ npm run roundtrip       # requires an Atlas vector index named "roundtrip_vector
   }
   ```
 
+> **Note:** `$vectorSearch` against a missing or not-yet-`queryable` Atlas Search index returns
+> zero results silently — no error, indistinguishable from "no matching documents." This bit us
+> once (M3's `ask` CLI ran for a while against a never-created index). `retrieveChunks` now calls
+> `ensureVectorIndexReady` before every search, which throws a clear error instead if the index is
+> missing or still building.
+
 Once that index exists:
 
 ```sh

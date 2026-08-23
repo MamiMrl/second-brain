@@ -6,6 +6,7 @@ import { CHUNKS_VECTOR_INDEX } from "../ingest/run.js";
 import type { DocumentFields } from "../ingest/types.js";
 import { resolveDocumentIds } from "./resolve-document-ids.js";
 import { fetchParentDocumentsById, requireParent } from "./fetch-parents.js";
+import { ensureVectorIndexReady } from "./ensure-index.js";
 import type { QueryFilter } from "./types.js";
 
 const DEFAULT_K = 6; // FR-2.1
@@ -35,6 +36,8 @@ export async function retrieveChunks(
 ): Promise<RetrievedChunk[]> {
   const documentIds = await resolveDocumentIds(db, filter);
   if (documentIds && documentIds.length === 0) return [];
+
+  await ensureVectorIndexReady(db, "chunks", CHUNKS_VECTOR_INDEX);
 
   const embeddings = new VoyageEmbeddings({ apiKey: env.voyageApiKey(), model: env.voyageModel() });
   const vectorStore = new MongoDBAtlasVectorSearch(embeddings, {
