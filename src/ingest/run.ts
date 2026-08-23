@@ -32,7 +32,7 @@ async function parseAll(inputPath: string, typeOverride?: DocumentType): Promise
   const results: { absPath: string; source: string; loaded: LoadedDocument }[] = [];
   for (const absPath of absPaths) {
     const source = toSourcePath(absPath);
-    const type = detectType(absPath, typeOverride);
+    const type = await detectType(absPath, typeOverride);
     const loaded = await loadDocument(type, absPath, source);
     results.push({ absPath, source, loaded });
   }
@@ -75,6 +75,12 @@ export async function runIngest({ inputPath, typeOverride }: RunIngestOptions): 
         if (chunk.highlightDate !== undefined) metadata.highlightDate = chunk.highlightDate;
         if (chunk.ingredients !== undefined) metadata.ingredients = chunk.ingredients;
         if (chunk.steps !== undefined) metadata.steps = chunk.steps;
+        if (chunk.date !== undefined) metadata.date = chunk.date;
+        if (chunk.calories !== undefined) metadata.calories = chunk.calories;
+        if (chunk.protein !== undefined) metadata.protein = chunk.protein;
+        if (chunk.carbs !== undefined) metadata.carbs = chunk.carbs;
+        if (chunk.fat !== undefined) metadata.fat = chunk.fat;
+        if (chunk.foods !== undefined) metadata.foods = chunk.foods;
 
         allChunkDocs.push(new Document({ pageContent: chunk.text, metadata }));
       });

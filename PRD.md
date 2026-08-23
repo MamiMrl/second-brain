@@ -6,7 +6,7 @@ A personal document Q&A system ("second brain") that ingests personal knowledge 
 
 **Owner:** Single user (personal tool)
 **Status:** Draft
-**Last updated:** 2026-07-23
+**Last updated:** 2026-08-23
 
 ## 2. Problem Statement
 
@@ -53,6 +53,7 @@ Single user. Representative queries:
 | Observability | LangSmith — traces every retrieval and generation |
 | LLM | Claude (via `@langchain/anthropic`), model: `claude-haiku-4-5-20251001` (configurable; cheapest model, chosen for hobby-project cost — swap to Sonnet if quality on cross-document queries disappoints) |
 | Embeddings | Voyage AI `voyage-3.5` (native Anthropic-recommended provider; Matryoshka truncation + quantization supported) |
+| Agentic layer (M7) | Claude Agent SDK (`@anthropic-ai/claude-agent-sdk`) — standalone from the LangChain/LangGraph retrieval pipeline above; powers the nutrition-recommendation agent only (FR-7.x) |
 | Runtime | Node.js / TypeScript |
 
 ### 5.2 Data flow
@@ -132,7 +133,7 @@ Two collections, per the domain model (see [CONTEXT.md](./CONTEXT.md)): `documen
 // documents collection
 {
   "_id": "...",
-  "type": "recipe" | "fitness" | "kindle" | "pdf",
+  "type": "recipe" | "fitness" | "kindle" | "pdf" | "nutrition",
   "title": "Sourdough Bread v3",                // or Book title for kindle
   "source": "recipes/sourdough-v3.md",           // path or origin
   "language": "en" | "tr" | ...,
@@ -205,6 +206,16 @@ Citations and generation join back to `documents` via `chunks.documentId` for `t
 - **FR-5.4** Eval dataset authoring: hybrid — candidates LLM-generated from the actual ingested corpus (RAGAS-style), then human-reviewed/edited/rejected before being locked in as ground truth (target: >95% spot-check acceptance rate, else regenerate the batch). Each example carries question + reference answer + reference chunk(s)/document(s) (not answer alone), so retrieval hit rate and generation faithfulness can be scored independently. Three distinct categories, each testing a different code path: (1) answerable-positive, (2) unanswerable/genuine-unknown (tests FR-3.3's abstention gate), (3) answerable-negative/confirmed-absence (tests FR-2.4's existence-routing path) — these are not the same as (2) and must not be conflated when authoring or scoring.
 - **FR-5.5** Eval dataset storage: a JSONL file committed to the repo (`eval/dataset.jsonl`) is the source of truth — versioned via git, consistent with the project's existing "repo is source of truth, not the DB" principle (§7 Portability). A sync script (`npm run eval:sync`) pushes it to a LangSmith Dataset for running experiments; LangSmith is a mirror, not the canonical copy. Revisit if this creates real friction (e.g. drift from hand-editing in the LangSmith UI).
 
+### FR-7: Agentic Nutrition-Recommendation Layer (Claude Agent SDK)
+
+A second, qualitatively different capability from FR-1–FR-5's retrieve-and-cite Q&A: reasoning over the user's own recent nutrition intake and saved recipes to proactively recommend what to cook next, built on the Claude Agent SDK (`@anthropic-ai/claude-agent-sdk`) as a standalone dependency from the LangChain/LangGraph retrieval pipeline.
+
+- **FR-7.1** Nutrition ingestion (Cronometer CSV, primary): `ingest <path> --type nutrition` follows the existing ingestion seam — a new `nutrition` `DocumentType`, loader registered in the loader-dispatch table alongside recipe/fitness/kindle/pdf. One Document per Cronometer Diary CSV export batch; one Chunk per logged day, carrying `date`, `calories`, `protein`, `carbs`, `fat`, and `foods` in chunk metadata (mirroring how `kindle` carries `highlightDate` and `recipe` carries `ingredients`/`steps`, per §5.3). Auto-detection keys off the CSV's known column header shape (`Day`, `Food Name`, `Energy (kcal)`); falls back to requiring an explicit `--type` flag if unrecognized.
+- **FR-7.2** Nutrition ingestion (screenshot, fallback): when no CSV export exists, a screenshot of the nutrition app is transcribed via a Claude vision call at ingest time into the same nutrition Chunk shape FR-7.1 produces, so downstream code never needs to know which path a given day's data came from. Unlike the CSV path, an image has no auto-detectable column-header signal, so `ingest <path> --type nutrition` is always required for a screenshot (extension alone can't disambiguate it from any other image). A deliberate, scoped exception to the project's usual Source Artifact → human-reviewed Transcription → Document pipeline (CONTEXT.md), accepted for v1 given no verified image-ingestion precedent exists elsewhere in the codebase.
+- **FR-7.3** Nutrition-suggestion agent: new CLI command `nutrition-suggest` (no arguments, on-demand only — no cron, no daemon, no notifications) invoking a new orchestration module that calls the Agent SDK's `query()` with two tools grouped into an in-process MCP server: `retrieveRecipes` (thin adapter over the existing `retrieveChunks` retriever, filter fixed to `type=recipe` — no new retrieval logic) and `getRecentNutrition` (reads recent `type=nutrition` Documents/Chunks directly via the existing Mongo access layer, bounded to a recency window).
+- **FR-7.4** Variety and groundedness: the agent's system prompt — not deterministic code — owns the judgment call to reason about recent intake (macros, variety, repetition) before recommending, and to favor variety across invocations rather than deterministically returning the same top vector match. The agent must recommend only a recipe `retrieveRecipes` actually returned, never one invented from general knowledge — the same no-fabrication principle as FR-3.1/3.3, enforced in this Agent SDK code path instead of the LangChain groundedness gate (`src/query/groundedness.ts`).
+- **FR-7.5** Error handling: nutrition ingestion follows the existing FR-1.8 fail-fast convention. New named cases: malformed/unrecognized Cronometer CSV (missing expected columns), unrecognized nutrition screenshot format or an unparseable vision transcription.
+
 ## 7. Non-Functional Requirements
 
 - **Latency:** end-to-end answer < 6s p50 (retrieval < 1s).
@@ -230,6 +241,7 @@ Citations and generation join back to `documents` via `chunks.documentId` for `t
 4. **M4 — Kindle:** clippings parser, book/author metadata, book-scoped queries.
 5. **M5 — Eval:** eval dataset, LangSmith groundedness evaluator, tune chunking/k/threshold against metrics.
 6. **M6 (v1.1) — UI:** chat REPL or minimal web UI with conversation memory.
+7. **M7 — Agentic nutrition layer:** nutrition ingestion (Cronometer CSV + screenshot fallback), `nutrition-suggest` CLI built on the Claude Agent SDK, reasoning over recent intake and saved recipes to proactively recommend what to cook next (FR-7.x). Sequenced after M3's retrieval foundation is proven solid — an agent built on shaky retrieval is a worse demo than a smaller agent built on solid retrieval.
 
 ## 9.1 Post-v1 Roadmap
 

@@ -3,8 +3,8 @@ import { answerQuery } from "../query/answer-query.js";
 import { ABSTAIN_MESSAGE } from "../query/groundedness.js";
 import type { DocumentType } from "../ingest/types.js";
 
-// FR-4.1: `ask "<question>" [--type <recipe|fitness|kindle|pdf>] [--language <lang>]`
-const VALID_TYPES: DocumentType[] = ["recipe", "fitness", "kindle", "pdf"];
+// FR-4.1: `ask "<question>" [--type <recipe|fitness|kindle|pdf|nutrition>] [--language <lang>]`
+const VALID_TYPES: DocumentType[] = ["recipe", "fitness", "kindle", "pdf", "nutrition"];
 
 function parseArgs(argv: string[]): { question: string; type?: DocumentType; language?: string } {
   let question: string | undefined;
@@ -29,7 +29,8 @@ function parseArgs(argv: string[]): { question: string; type?: DocumentType; lan
     }
   }
 
-  if (!question) throw new Error('Usage: ask "<question>" [--type <recipe|fitness|kindle|pdf>] [--language <lang>]');
+  if (!question)
+    throw new Error('Usage: ask "<question>" [--type <recipe|fitness|kindle|pdf|nutrition>] [--language <lang>]');
   return { question, type, language };
 }
 

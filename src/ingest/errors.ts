@@ -47,11 +47,27 @@ export class IngestError extends Error {
     );
   }
 
+  static nutritionCsvMalformed(source: string, detail: string): IngestError {
+    return new IngestError(
+      source,
+      `Cronometer CSV export is malformed or missing expected columns (${detail}). Re-export the Diary from Cronometer and retry.`,
+    );
+  }
+
+  static nutritionScreenshotUnrecognized(source: string, cause?: unknown): IngestError {
+    const detail = cause instanceof Error ? ` (${cause.message})` : "";
+    return new IngestError(
+      source,
+      `nutrition screenshot could not be transcribed into a recognizable day of intake${detail}.`,
+    );
+  }
+
   static ambiguousType(source: string): IngestError {
     return new IngestError(
       source,
       "could not auto-detect document type from its path (expected it under a `recipes/` or `fitness/` directory, " +
-        "or a .pdf/.txt/.html file). Pass an explicit --type override.",
+        "a .pdf/.txt/.html file, or a .csv with recognizable Cronometer Diary columns). " +
+        "Pass an explicit --type override.",
     );
   }
 

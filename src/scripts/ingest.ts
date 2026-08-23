@@ -1,8 +1,8 @@
 import { runIngest } from "../ingest/run.js";
 import type { DocumentType } from "../ingest/types.js";
 
-// FR-1.7: `ingest <path> [--type <recipe|fitness|kindle|pdf>]`
-const VALID_TYPES: DocumentType[] = ["recipe", "fitness", "kindle", "pdf"];
+// FR-1.7: `ingest <path> [--type <recipe|fitness|kindle|pdf|nutrition>]`
+const VALID_TYPES: DocumentType[] = ["recipe", "fitness", "kindle", "pdf", "nutrition"];
 
 function parseArgs(argv: string[]): { inputPath: string; typeOverride?: DocumentType } {
   let inputPath: string | undefined;
@@ -23,7 +23,7 @@ function parseArgs(argv: string[]): { inputPath: string; typeOverride?: Document
     }
   }
 
-  if (!inputPath) throw new Error("Usage: ingest <path> [--type <recipe|fitness|kindle|pdf>]");
+  if (!inputPath) throw new Error("Usage: ingest <path> [--type <recipe|fitness|kindle|pdf|nutrition>]");
   return { inputPath, typeOverride };
 }
 
