@@ -4,3 +4,4 @@ dist/
 teaching/
 .claude/settings.local.json
 HANDOFFS.md
+data/

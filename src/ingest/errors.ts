@@ -50,7 +50,15 @@ export class IngestError extends Error {
   static nutritionCsvMalformed(source: string, detail: string): IngestError {
     return new IngestError(
       source,
-      `Cronometer CSV export is malformed or missing expected columns (${detail}). Re-export the Diary from Cronometer and retry.`,
+      `Cronometer CSV export is malformed or missing expected columns (${detail}). Re-export from Cronometer and retry.`,
+    );
+  }
+
+  static nutritionCsvMissingPair(source: string): IngestError {
+    return new IngestError(
+      source,
+      "Cronometer nutrition CSV export needs its sibling file in the same directory — a Daily Summary export needs " +
+        "a matching Servings export (and vice versa) so macros and foods can be joined into one day's chunk.",
     );
   }
 
@@ -66,7 +74,7 @@ export class IngestError extends Error {
     return new IngestError(
       source,
       "could not auto-detect document type from its path (expected it under a `recipes/` or `fitness/` directory, " +
-        "a .pdf/.txt/.html file, or a .csv with recognizable Cronometer Diary columns). " +
+        "a .pdf/.txt/.html file, or a .csv with recognizable Cronometer Daily Summary or Servings columns). " +
         "Pass an explicit --type override.",
     );
   }

@@ -7,8 +7,11 @@ import { VoyageEmbeddings } from "../lib/voyage-embeddings.js";
 import { walk, toSourcePath } from "./walk.js";
 import { detectType } from "./detect-type.js";
 import { loadDocument } from "./loaders/index.js";
+import { loadNutritionCsvPair } from "./loaders/nutrition.js";
+import { findNutritionPair } from "./pair-nutrition.js";
 import { upsertDocument } from "./upsert-document.js";
 import { MongoRecordManager } from "./record-manager.js";
+import { IngestError } from "./errors.js";
 import type { DocumentType, LoadedDocument } from "./types.js";
 
 export const CHUNKS_VECTOR_INDEX = "chunks_vector_index";
@@ -30,7 +33,25 @@ export interface RunIngestOptions {
 async function parseAll(inputPath: string, typeOverride?: DocumentType): Promise<{ absPath: string; source: string; loaded: LoadedDocument }[]> {
   const absPaths = await walk(inputPath);
   const results: { absPath: string; source: string; loaded: LoadedDocument }[] = [];
-  for (const absPath of absPaths) {
+
+  // FR-7.1: a Cronometer nutrition export is two files (Daily Summary +
+  // Servings) that must be joined before the normal per-file loop below —
+  // find and consume the pair first, if this batch has one.
+  let remaining = absPaths;
+  if (!typeOverride) {
+    const { dailySummaryPath, servingsPath } = await findNutritionPair(absPaths);
+    if (dailySummaryPath && servingsPath) {
+      const dailySummarySource = toSourcePath(dailySummaryPath);
+      const servingsSource = toSourcePath(servingsPath);
+      const loaded = await loadNutritionCsvPair(dailySummaryPath, dailySummarySource, servingsPath, servingsSource);
+      results.push({ absPath: dailySummaryPath, source: loaded.document.source, loaded });
+      remaining = absPaths.filter((p) => p !== dailySummaryPath && p !== servingsPath);
+    } else if (dailySummaryPath || servingsPath) {
+      throw IngestError.nutritionCsvMissingPair(toSourcePath((dailySummaryPath ?? servingsPath)!));
+    }
+  }
+
+  for (const absPath of remaining) {
     const source = toSourcePath(absPath);
     const type = await detectType(absPath, typeOverride);
     const loaded = await loadDocument(type, absPath, source);

@@ -5,8 +5,13 @@ import { detectType } from "./detect-type.js";
 import { IngestError } from "./errors.js";
 
 describe("detectType — nutrition CSV sniffing (FR-7.1)", () => {
-  it("detects a Cronometer Diary export by its column header shape", async () => {
-    const type = await detectType(path.resolve("fixtures/nutrition/cronometer-diary-2026-08.csv"));
+  it("detects a Cronometer Daily Summary export by its column header shape", async () => {
+    const type = await detectType(path.resolve("fixtures/nutrition/dailysummary-2026-08.csv"));
+    expect(type).toBe("nutrition");
+  });
+
+  it("detects a Cronometer Servings export by its column header shape", async () => {
+    const type = await detectType(path.resolve("fixtures/nutrition/servings-2026-08.csv"));
     expect(type).toBe("nutrition");
   });
 
@@ -20,7 +25,7 @@ describe("detectType — nutrition CSV sniffing (FR-7.1)", () => {
   });
 
   it("respects an explicit --type override regardless of content", async () => {
-    const type = await detectType(path.resolve("fixtures/nutrition/cronometer-diary-2026-08.csv"), "recipe");
+    const type = await detectType(path.resolve("fixtures/nutrition/dailysummary-2026-08.csv"), "recipe");
     expect(type).toBe("recipe");
   });
 });

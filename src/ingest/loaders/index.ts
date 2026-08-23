@@ -4,7 +4,6 @@ import type { DocumentType, LoadedDocument } from "../types.js";
 import { loadPdf } from "./pdf.js";
 import { loadRecipe } from "./recipe.js";
 import { loadFitness } from "./fitness.js";
-import { loadNutritionCsv } from "./nutrition.js";
 import { loadNutritionScreenshot } from "./nutrition-screenshot.js";
 
 const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp"]);
@@ -21,9 +20,11 @@ export async function loadDocument(type: DocumentType, absPath: string, source: 
     case "fitness":
       return loadFitness(absPath, source);
     case "nutrition":
-      return IMAGE_EXTENSIONS.has(path.extname(absPath).toLowerCase())
-        ? loadNutritionScreenshot(absPath, source)
-        : loadNutritionCsv(absPath, source);
+      if (IMAGE_EXTENSIONS.has(path.extname(absPath).toLowerCase())) return loadNutritionScreenshot(absPath, source);
+      // CSV nutrition ingestion always pairs a Daily Summary + Servings
+      // export (see pair-nutrition.ts) — reaching here means run.ts's
+      // per-batch pairing found this file without its sibling.
+      throw IngestError.nutritionCsvMissingPair(source);
     case "kindle":
       throw IngestError.unsupportedType(source, type);
   }

@@ -3,23 +3,33 @@ import path from "node:path";
 import { IngestError } from "./errors.js";
 import type { DocumentType } from "./types.js";
 
-// FR-7.1: a Cronometer Diary export is recognized by its known column
-// header shape, not by extension alone (many things are .csv). Sniffing
-// only the first line keeps this cheap even for large exports.
-async function isCronometerCsv(filePath: string): Promise<boolean> {
-  let firstLine: string;
+async function sniffFirstLine(filePath: string): Promise<string> {
   try {
     const handle = await fs.open(filePath, "r");
     try {
       const { buffer, bytesRead } = await handle.read(Buffer.alloc(4096), 0, 4096, 0);
-      firstLine = buffer.toString("utf8", 0, bytesRead).split(/\r?\n/, 1)[0] ?? "";
+      return buffer.toString("utf8", 0, bytesRead).split(/\r?\n/, 1)[0] ?? "";
     } finally {
       await handle.close();
     }
   } catch {
-    return false;
+    return "";
   }
-  return firstLine.includes("Day") && firstLine.includes("Food Name") && firstLine.includes("Energy (kcal)");
+}
+
+// FR-7.1: Cronometer exports nutrition as two files, recognized by column
+// header shape rather than filename (Cronometer lets you name exports
+// anything) — Daily Summary (macros, no Food Name) and Servings (food
+// names, no Energy). Sniffing only the first line keeps this cheap even
+// for large exports.
+export async function isCronometerDailySummaryCsv(filePath: string): Promise<boolean> {
+  const firstLine = await sniffFirstLine(filePath);
+  return firstLine.includes("Date") && firstLine.includes("Energy (kcal)") && firstLine.includes("Completed");
+}
+
+export async function isCronometerServingsCsv(filePath: string): Promise<boolean> {
+  const firstLine = await sniffFirstLine(filePath);
+  return firstLine.includes("Day") && firstLine.includes("Food Name") && !firstLine.includes("Energy (kcal)");
 }
 
 // FR-1.7: auto-detection by file extension. Markdown is disambiguated between
@@ -33,7 +43,7 @@ export async function detectType(filePath: string, override?: DocumentType): Pro
   if (ext === ".pdf") return "pdf";
   if (ext === ".txt" || ext === ".html" || ext === ".htm") return "kindle";
   if (ext === ".csv") {
-    if (await isCronometerCsv(filePath)) return "nutrition";
+    if ((await isCronometerDailySummaryCsv(filePath)) || (await isCronometerServingsCsv(filePath))) return "nutrition";
     throw IngestError.ambiguousType(filePath);
   }
 
