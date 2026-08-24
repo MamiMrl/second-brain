@@ -10,11 +10,11 @@ import { env } from "../lib/env.js";
 // because both read the same signal (what the question is asking about).
 export const inferredFilterSchema = z.object({
   type: z
-    .enum(["recipe", "fitness", "kindle", "pdf"])
+    .enum(["recipe", "fitness", "kindle", "pdf", "nutrition"])
     .optional()
     .describe(
       "Restrict to this document type only if the question clearly implies one " +
-        "(mentions a recipe, a workout/exercise, or a book). Omit if ambiguous or the question could span multiple types.",
+        "(mentions a recipe, a workout/exercise, a book, or a food/nutrition log). Omit if ambiguous or the question could span multiple types.",
     ),
   dateRange: z
     .object({
