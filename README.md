@@ -117,7 +117,18 @@ npm run ingest -- <path> [--type <recipe|fitness|kindle|pdf>]
 - Re-running `ingest` on the same path is idempotent (content-hash based, via LangChain's Indexing API `RecordManager`): unchanged files are skipped, changed files are updated, and chunks removed from a source are cleaned up.
 - Ingestion is fail-fast: if any file in a batch fails to parse, nothing in that batch is written to Mongo.
 
-Query CLI (`npm run ask`) lands in M3 — not built yet.
+Query CLI (M3, `npm run ask`) is built and verified end-to-end:
+
+```sh
+npm run ask "<question>" [--type <recipe|fitness|kindle|pdf|nutrition>] [--language <lang>]
+```
+
+- Positive queries return a generated answer with rendered citations.
+- Confirmed-absence queries (e.g. "do I have a quinoa recipe?") route through existence/negation scanning (FR-2.4) and answer with a confident "no".
+- Genuine-unknown queries abstain ("I don't have information about that in your documents") via the FR-3.3 groundedness gate rather than hallucinating.
+- End-to-end latency is well above the PRD's <6s p50 target (tens of seconds per query, dominated by the local Ollama filter model) — not yet tuned; tracked for M5.
+
+`fixtures/` (recipes, fitness notes, nutrition CSVs) is a permanent regression fixture set, not scratch data — it's what M3 verification and M7 nutrition tests ingest and query against. Keep it in sync with new document types as they're added.
 
 ## Contributing
 

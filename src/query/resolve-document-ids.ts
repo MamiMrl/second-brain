@@ -25,7 +25,9 @@ export async function resolveDocumentIds(db: Db, filter: QueryFilter): Promise<s
 
   if (filter.language) query.language = filter.language;
 
-  if (filter.book) {
+  // Ignore a stray `book` if a non-Kindle type was also inferred, rather than
+  // AND-ing an unsatisfiable title/author match against the wrong type.
+  if (filter.book && query.type === "kindle") {
     const pattern = new RegExp(escapeRegExp(filter.book), "i");
     query.$or = [{ title: pattern }, { author: pattern }];
   }
