@@ -29,3 +29,15 @@ describe("detectType — nutrition CSV sniffing (FR-7.1)", () => {
     expect(type).toBe("recipe");
   });
 });
+
+describe("detectType — Kindle export (FR-1.4/FR-1.7)", () => {
+  it("detects a .txt file as kindle", async () => {
+    const type = await detectType(path.resolve("fixtures/kindle/My Clippings.txt"));
+    expect(type).toBe("kindle");
+  });
+
+  it("detects a .html Kindle export as kindle", async () => {
+    const type = await detectType("some/export/My Clippings.html");
+    expect(type).toBe("kindle");
+  });
+});

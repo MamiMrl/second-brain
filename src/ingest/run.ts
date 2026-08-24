@@ -7,6 +7,7 @@ import { VoyageEmbeddings } from "../lib/voyage-embeddings.js";
 import { walk, toSourcePath } from "./walk.js";
 import { detectType } from "./detect-type.js";
 import { loadDocument } from "./loaders/index.js";
+import { loadKindleClippings } from "./loaders/kindle.js";
 import { loadNutritionCsvPair } from "./loaders/nutrition.js";
 import { findNutritionPair } from "./pair-nutrition.js";
 import { upsertDocument } from "./upsert-document.js";
@@ -57,6 +58,17 @@ export async function parseAll(inputPath: string, typeOverride?: DocumentType): 
   for (const absPath of remaining) {
     const source = toSourcePath(absPath);
     const type = await detectType(absPath, typeOverride);
+
+    // Kindle's My Clippings.txt is one file spanning every book on the
+    // device — unlike every other loader, it fans out into multiple
+    // Documents (one per book, CONTEXT.md), so it can't go through
+    // loadDocument's 1-file-to-1-document dispatch.
+    if (type === "kindle") {
+      const books = await loadKindleClippings(absPath, source);
+      for (const loaded of books) results.push({ absPath, source: loaded.document.source, loaded });
+      continue;
+    }
+
     const loaded = await loadDocument(type, absPath, source);
     results.push({ absPath, source, loaded });
   }
@@ -88,12 +100,17 @@ export async function runIngest({ inputPath, typeOverride }: RunIngestOptions): 
         // Only defined fields are included — MongoDBAtlasVectorSearch spreads
         // this object directly into the stored chunk document, so an
         // undefined `page`/`highlightDate` would otherwise show up as an
-        // explicit null-ish field on every non-PDF/non-Kindle chunk.
+        // explicit null-ish field on every non-PDF/non-Kindle chunk. No
+        // per-chunk timestamp here (Documents already carry ingestedAt/
+        // updatedAt): LangChain's RecordManager hashes pageContent *and*
+        // metadata together to decide what's unchanged (FR-1.5's "no-op on
+        // unchanged content"), so a metadata field that changes on every run
+        // — like `new Date()` would — defeats idempotency for every chunk on
+        // every ingest, not just the ones that actually changed.
         const metadata: Record<string, unknown> = {
           documentId,
           source: loaded.document.source,
           chunkIndex,
-          createdAt: new Date().toISOString(),
         };
         if (chunk.page !== undefined) metadata.page = chunk.page;
         if (chunk.highlightDate !== undefined) metadata.highlightDate = chunk.highlightDate;

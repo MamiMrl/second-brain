@@ -1,5 +1,3 @@
-import type { DocumentType } from "./types.js";
-
 // FR-1.8: batch ingestion aborts on first failure with an actionable,
 // error-type-specific message instead of a raw stack trace. Each static
 // factory below corresponds to one of the known cases enumerated in FR-1.8.
@@ -70,6 +68,32 @@ export class IngestError extends Error {
     );
   }
 
+  static kindleUnrecognizedFormat(source: string, cause?: unknown): IngestError {
+    const detail = cause instanceof Error ? ` (${cause.message})` : "";
+    return new IngestError(
+      source,
+      `Kindle export is not a recognizable "My Clippings.txt" format${detail}. Expected Amazon's clippings ` +
+        "layout (title line, metadata line, blank line, highlight text, \"==========\" separator).",
+    );
+  }
+
+  static kindleEncodingInvalid(source: string): IngestError {
+    return new IngestError(
+      source,
+      "Kindle export is UTF-16 encoded (older Kindle firmware default), not UTF-8. Re-save/convert the file to " +
+        "UTF-8 and retry.",
+    );
+  }
+
+  static kindleHtmlNotSupported(source: string): IngestError {
+    return new IngestError(
+      source,
+      'HTML Kindle exports are not supported yet — only the plain-text "My Clippings.txt" export. On your Kindle, ' +
+        "use Settings > My Account > Export Notes and Highlights (or copy My Clippings.txt directly from the " +
+        "device) to get the .txt format instead.",
+    );
+  }
+
   static ambiguousType(source: string): IngestError {
     return new IngestError(
       source,
@@ -77,9 +101,5 @@ export class IngestError extends Error {
         "a .pdf/.txt/.html file, or a .csv with recognizable Cronometer Daily Summary or Servings columns). " +
         "Pass an explicit --type override.",
     );
-  }
-
-  static unsupportedType(source: string, type: DocumentType): IngestError {
-    return new IngestError(source, `type "${type}" is not implemented yet (kindle ingestion lands in M4).`);
   }
 }

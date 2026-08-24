@@ -8,9 +8,12 @@ import { loadNutritionScreenshot } from "./nutrition-screenshot.js";
 
 const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp"]);
 
-// M2 covers FR-1.1/1.2/1.3 (pdf/recipe/fitness); Kindle (FR-1.4) is M4;
-// nutrition (FR-7.1/7.2) is M7 — CSV export primary, screenshot fallback,
-// dispatched by extension since both share the "nutrition" DocumentType.
+// M2 covers FR-1.1/1.2/1.3 (pdf/recipe/fitness); nutrition (FR-7.1/7.2) is
+// M7 — CSV export primary, screenshot fallback, dispatched by extension
+// since both share the "nutrition" DocumentType. Kindle (FR-1.4) fans one
+// source file out into multiple Documents (one per book), so it's dispatched
+// separately in run.ts's parseAll and never reaches this 1-file-to-1-document
+// dispatch table.
 export async function loadDocument(type: DocumentType, absPath: string, source: string): Promise<LoadedDocument> {
   switch (type) {
     case "pdf":
@@ -26,6 +29,6 @@ export async function loadDocument(type: DocumentType, absPath: string, source: 
       // per-batch pairing found this file without its sibling.
       throw IngestError.nutritionCsvMissingPair(source);
     case "kindle":
-      throw IngestError.unsupportedType(source, type);
+      throw new Error("unreachable: kindle is dispatched via loadKindleClippings in run.ts, not loadDocument");
   }
 }
