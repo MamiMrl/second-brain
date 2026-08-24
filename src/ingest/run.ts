@@ -30,15 +30,18 @@ export interface RunIngestOptions {
 // in the batch before anything is written; if any file fails, nothing from
 // this run has touched Mongo yet, so aborting here is a clean no-op rather
 // than requiring a rollback.
-async function parseAll(inputPath: string, typeOverride?: DocumentType): Promise<{ absPath: string; source: string; loaded: LoadedDocument }[]> {
+export async function parseAll(inputPath: string, typeOverride?: DocumentType): Promise<{ absPath: string; source: string; loaded: LoadedDocument }[]> {
   const absPaths = await walk(inputPath);
   const results: { absPath: string; source: string; loaded: LoadedDocument }[] = [];
 
   // FR-7.1: a Cronometer nutrition export is two files (Daily Summary +
   // Servings) that must be joined before the normal per-file loop below —
-  // find and consume the pair first, if this batch has one.
+  // find and consume the pair first, if this batch has one. Still applies
+  // under `--type nutrition` (an explicit override doesn't mean "skip
+  // pairing," only "skip auto-detection" for the remaining files); only a
+  // *different* override (e.g. --type recipe) bypasses pairing entirely.
   let remaining = absPaths;
-  if (!typeOverride) {
+  if (!typeOverride || typeOverride === "nutrition") {
     const { dailySummaryPath, servingsPath } = await findNutritionPair(absPaths);
     if (dailySummaryPath && servingsPath) {
       const dailySummarySource = toSourcePath(dailySummaryPath);
