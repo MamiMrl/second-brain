@@ -1,5 +1,5 @@
 ---
-current: HANDOFF-2026-08-11-m3-testing.md
+current: HANDOFF-2026-08-24-m3-verified.md
 archive_after_days: 30
 ---
 
@@ -9,13 +9,30 @@ Track session handoffs and task progress. See individual files for full context.
 
 ```yaml
 handoffs:
+  - date: 2026-08-24
+    file: HANDOFF-2026-08-24-m3-verified.md
+    milestone: M3 verification (issue #2) closed
+    status: completed
+    tasks: [1, 2, 3, 4, 5]
+    task_progress: "5/5 completed — ingest verified, all 3 query paths tested live, latency measured, README fixed, fixtures/ decision recorded"
+    archived: false
+    notes: |
+      Closed issue #2. Ingested fixtures/, ran all three query paths (positive/
+      confirmed-absence/genuine-unknown) live against Atlas + Ollama + Anthropic — all
+      correct. Found and fixed a real bug: resolve-document-ids.ts's `book` filter leaked
+      into non-Kindle queries, zeroing retrieval (commit 7f4705f). Latency: tens of
+      seconds per query, well above the <6s p50 target — deferred to M5. Also fixed a
+      related shotgun-surgery bug found while reviewing: filter-model.ts's type enum was
+      missing "nutrition" (commit e3d7c83). Both pushed to origin/main. Next: issue #3
+      (M4 Kindle ingestion), ready-for-agent.
+
   - date: 2026-08-11
     file: HANDOFF-2026-08-11-m3-testing.md
     milestone: M3 integration testing (ask CLI + FR-3.3 groundedness gate)
-    status: in-progress
+    status: completed
     tasks: [1, 2, 3, 4, 5]
-    task_progress: "2/5 completed (ask CLI + groundedness gate done; Mongo/Ollama setup in progress, live tests + latency check pending)"
-    archived: false
+    task_progress: "5/5 completed — superseded by HANDOFF-2026-08-24-m3-verified.md, which finished the live tests + latency check this file left pending"
+    archived: true
     notes: |
       Built the ask CLI (FR-4.1, didn't exist before) and closed a real gap: FR-3.3's
       "I don't know" gate (pre-filter + post-gen groundedness check) was unimplemented.
@@ -53,13 +70,14 @@ handoffs:
 
 | File | Milestone | Status | Latest Update |
 |---|---|---|---|
-| `HANDOFF-2026-08-11-m3-testing.md` | M3 integration testing | in-progress | 2026-08-11 |
+| `HANDOFF-2026-08-24-m3-verified.md` | M3 verification (issue #2) closed | completed | 2026-08-24 |
+| `HANDOFF-2026-08-11-m3-testing.md` | M3 integration testing | completed (archived) | 2026-08-11 |
 | `HANDOFF-2026-08-11.md` | Skills setup + handoff redesign | in-progress | 2026-08-11 |
 | `HANDOFF-2026-08-10.md` | M3 query CLI | in-progress | 2026-08-10 |
 
 ## How to Use This Index
 
-1. **Next session:** Read `current` handoff (`HANDOFF-2026-08-11-m3-testing.md`)
+1. **Next session:** Read `current` handoff (`HANDOFF-2026-08-24-m3-verified.md`) — next up is issue #3 (M4 Kindle ingestion)
 2. **Pick a task:** See task IDs in `task_progress` (e.g., task 1 = M3 integration testing)
 3. **Work on it:** Use `/tdd`, `/implement`, or relevant skill
 4. **Update task status:** Mark completed tasks via `TaskUpdate`
