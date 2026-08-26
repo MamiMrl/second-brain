@@ -6,11 +6,14 @@ import { generateAnswer, type GeneratedAnswer } from "./generate-answer.js";
 import { hasRetrievalSignal, isGrounded } from "./groundedness.js";
 import type { ExistenceAnswer } from "./existence-answer.js";
 import type { CliFilterOverrides } from "./types.js";
+import type { RetrievedChunk } from "./retriever.js";
 
 export type AskResult =
   | { kind: "existence"; existence: ExistenceAnswer }
   | { kind: "abstain"; reason: "no-signal" | "ungrounded" }
-  | { kind: "generated"; generated: GeneratedAnswer };
+  // `chunks` is exposed alongside `generated` so callers can see exactly
+  // which chunks the answer was grounded in, without re-running retrieval.
+  | { kind: "generated"; generated: GeneratedAnswer; chunks: RetrievedChunk[] };
 
 // FR-4.1 entry point: resolves filters + existence routing (FR-2.2/2.4),
 // then either the existence-scan path (bypasses FR-3.3, per FR-2.4) or the
@@ -28,5 +31,5 @@ export async function answerQuery(db: Db, question: string, overrides: CliFilter
   const generated = await generateAnswer(question, chunks);
   if (!(await isGrounded(question, generated.answer, chunks))) return { kind: "abstain", reason: "ungrounded" };
 
-  return { kind: "generated", generated };
+  return { kind: "generated", generated, chunks };
 }

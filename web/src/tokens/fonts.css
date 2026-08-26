@@ -1,0 +1,4 @@
+/* Geist / Geist Mono are loaded from Google Fonts — no local binaries were
+   provided with the source. Drop .woff2 files into assets/fonts/ and swap
+   these for real @font-face rules when they are available. */
+@import url("https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap");

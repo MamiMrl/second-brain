@@ -1,0 +1,28 @@
+:root {
+  --font-sans: Geist, ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, monospace;
+
+  /* Sizes are literal to the product — half-pixel steps are intentional. */
+  --text-micro: 11px;      /* section labels, ref lines */
+  --text-mini: 11.5px;     /* popover meta, badges */
+  --text-caption: 12px;    /* stats, source toggle */
+  --text-detail: 12.5px;   /* cited text, filter pills */
+  --text-ui: 13px;         /* sidebar items, menu items, chips */
+  --text-base: 14px;       /* body + answer text */
+  --text-glyph: 16px;      /* composer glyphs */
+  --text-display: 26px;    /* empty-state headline */
+
+  --leading-tight: 1.35;
+  --leading-snug: 1.45;
+  --leading-normal: 1.5;
+  --leading-bubble: 1.55;
+  --leading-answer: 1.65;
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+
+  --tracking-display: -0.02em;
+  --tracking-title: -0.01em;
+  --tracking-caps: 0.04em;
+}

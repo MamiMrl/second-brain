@@ -1,0 +1,11 @@
+:root {
+  --sidebar-width: 264px;
+  --content-max: 736px;
+  --gutter: 24px;
+  --message-gap: 28px;
+  --control-size: 30px;      /* composer buttons */
+  --avatar-size: 24px;
+  --brand-mark-size: 22px;
+  --z-popover: 30;
+  --z-menu: 40;
+}

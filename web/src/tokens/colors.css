@@ -1,0 +1,48 @@
+:root {
+  /* Neutral ramp — the whole system is one cool-grey scale plus a single status green. */
+  --zinc-0: #ffffff;
+  --zinc-50: #fafafa;
+  --zinc-100: #f4f4f5;
+  --zinc-125: #f0f0f1;
+  --zinc-150: #ececee;
+  --zinc-200: #e4e4e7;
+  --zinc-250: #d9d9de;
+  --zinc-300: #d4d4d8;
+  --zinc-400: #a1a1aa;
+  --zinc-500: #71717a;
+  --zinc-600: #52525b;
+  --zinc-900: #18181b;
+  --zinc-950: #09090b;
+  --green-500: #22c55e;
+
+  /* Surfaces */
+  --surface-app: var(--zinc-0);
+  --surface-sidebar: var(--zinc-50);
+  --surface-raised: var(--zinc-0);
+  --surface-muted: var(--zinc-100);
+  --surface-bubble: var(--zinc-100);
+  --surface-hover: var(--zinc-100);
+  --surface-hover-sidebar: var(--zinc-125);
+  --surface-selected: var(--zinc-150);
+
+  /* Borders */
+  --border-subtle: var(--zinc-100);
+  --border-default: var(--zinc-200);
+  --border-strong: var(--zinc-300);
+  --border-avatar: var(--zinc-250);
+  --border-bubble: var(--zinc-150);
+
+  /* Text */
+  --text-body: var(--zinc-950);
+  --text-primary: var(--zinc-900);
+  --text-muted: var(--zinc-600);
+  --text-subtle: var(--zinc-500);
+  --text-faint: var(--zinc-400);
+  --text-inverse: var(--zinc-50);
+
+  /* Interactive */
+  --action-solid: var(--zinc-900);
+  --action-solid-fg: var(--zinc-50);
+  --action-disabled: var(--zinc-300);
+  --status-ok: var(--green-500);
+}

@@ -1,0 +1,19 @@
+:root {
+  --ease-default: ease;
+  --duration-micro: 0.14s;  /* popovers, menus */
+  --duration-enter: 0.28s;  /* message rows */
+  --pulse-dot: 1.1s;
+  --pulse-text: 1.6s;
+  --pulse-caret: 0.9s;
+  --status-step: 800ms;     /* retrieval status rotation */
+}
+
+@keyframes sb-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes sb-pulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}

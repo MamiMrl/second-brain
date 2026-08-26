@@ -1,0 +1,12 @@
+:root {
+  --radius-xs: 2px;   /* glyph squares, stop icon */
+  --radius-sm: 4px;   /* citation marker */
+  --radius-badge: 5px;
+  --radius-item: 6px; /* thread rows, brand mark */
+  --radius-control: 7px;
+  --radius-button: 8px;
+  --radius-panel: 10px;
+  --radius-composer: 14px;
+  --radius-pill: 999px;
+  --radius-bubble: 14px 14px 4px 14px; /* user message, tail bottom-right */
+}

@@ -10,7 +10,8 @@
     "roundtrip": "tsx src/scripts/roundtrip.ts",
     "ingest": "tsx src/scripts/ingest.ts",
     "ask": "tsx src/scripts/ask.ts",
-    "nutrition-suggest": "tsx src/scripts/nutrition-suggest.ts"
+    "nutrition-suggest": "tsx src/scripts/nutrition-suggest.ts",
+    "chat-server": "tsx src/scripts/chat-server.ts"
   },
   "repository": {
     "type": "git",
