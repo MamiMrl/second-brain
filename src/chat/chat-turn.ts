@@ -5,6 +5,7 @@ import { appendMessage, getConversation } from "./conversations.js";
 import type { ChatMessage } from "./types.js";
 import type { Reference } from "../query/generate-answer.js";
 import type { ConversationTurn } from "../query/types.js";
+import { reflectOnTurn } from "../memory/reflect.js";
 
 // `references` is display-ready citation detail (title/ref/citedText, per
 // generate-answer.ts's Reference) for the frontend to render inline markers
@@ -71,6 +72,15 @@ export async function handleChatTurn(
   const assistantMessage = toAssistantMessage(result);
   const { references, ...toPersist } = assistantMessage;
   await appendMessage(db, conversationId, toPersist);
+
+  // Ticket #23's post-conversation-turn reflection trigger. Only "generated"
+  // turns carry a real answer worth reflecting on (abstain/existence have
+  // no synthesized content). Fired without awaiting — the spec's "no
+  // per-turn hot-path writes blocking the response" — so a slow or failed
+  // reflection call never delays or breaks the chat response.
+  if (result.kind === "generated") {
+    void reflectOnTurn(db, conversationId, question, assistantMessage.text).catch(() => {});
+  }
 
   return assistantMessage;
 }
