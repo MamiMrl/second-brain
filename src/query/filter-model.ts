@@ -61,11 +61,14 @@ function buildFilterModel(): BaseChatModel {
   return new ChatOllama({ baseUrl: env.ollamaBaseUrl(), model });
 }
 
-export async function inferFilters(question: string): Promise<InferredFilter> {
+export async function inferFilters(question: string, signal?: AbortSignal): Promise<InferredFilter> {
   const model = buildFilterModel();
   const structured = model.withStructuredOutput(inferredFilterSchema, { name: "query_filters" });
-  return structured.invoke([
-    { role: "system", content: SYSTEM_PROMPT },
-    { role: "user", content: question },
-  ]);
+  return structured.invoke(
+    [
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "user", content: question },
+    ],
+    { signal },
+  );
 }

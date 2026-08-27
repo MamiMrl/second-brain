@@ -78,7 +78,7 @@ function renderAnswer(blocks: Anthropic.TextBlock[], chunks: RetrievedChunk[]): 
 // (anthropicResponseToChatMessages) collapses a single-text-block response
 // to a plain string, silently dropping its `citations` array — a real risk
 // for short, single-citation answers, which are a common shape here.
-export async function generateAnswer(question: string, chunks: RetrievedChunk[]): Promise<GeneratedAnswer> {
+export async function generateAnswer(question: string, chunks: RetrievedChunk[], signal?: AbortSignal): Promise<GeneratedAnswer> {
   const client = new Anthropic({ apiKey: env.anthropicApiKey() });
 
   const documents: Anthropic.DocumentBlockParam[] = chunks.map((chunk) => ({
@@ -88,12 +88,15 @@ export async function generateAnswer(question: string, chunks: RetrievedChunk[])
     citations: { enabled: true },
   }));
 
-  const response = await client.messages.create({
-    model: env.claudeModel(),
-    max_tokens: MAX_TOKENS,
-    system: SYSTEM_PROMPT,
-    messages: [{ role: "user", content: [...documents, { type: "text", text: question }] }],
-  });
+  const response = await client.messages.create(
+    {
+      model: env.claudeModel(),
+      max_tokens: MAX_TOKENS,
+      system: SYSTEM_PROMPT,
+      messages: [{ role: "user", content: [...documents, { type: "text", text: question }] }],
+    },
+    { signal },
+  );
 
   const textBlocks = response.content.filter((block): block is Anthropic.TextBlock => block.type === "text");
   return renderAnswer(textBlocks, chunks);

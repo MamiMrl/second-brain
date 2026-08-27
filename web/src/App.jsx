@@ -2,6 +2,9 @@ import React from "react";
 import { Composer } from "./components/chat/Composer.jsx";
 import { AnswerBody } from "./components/chat/AnswerBody.jsx";
 import { SourceList } from "./components/chat/SourceList.jsx";
+import { StatusLine } from "./components/chat/StatusLine.jsx";
+import { useChatStatusStore } from "./stores/chatStatus.js";
+import { useChatStream } from "./stores/useChatStream.js";
 
 // The backend's Reference shape (query/generate-answer.ts) carries
 // `citedText: string[]` (one entry per distinct cited span); the design
@@ -31,6 +34,11 @@ export function App() {
   const [messages, setMessages] = React.useState([]);
   const [draft, setDraft] = React.useState("");
   const [busy, setBusy] = React.useState(false);
+  const abortRef = React.useRef(null);
+
+  const statusStep = useChatStatusStore((state) => state.step);
+  const clearStatus = useChatStatusStore((state) => state.clear);
+  useChatStream(conversationId);
 
   React.useEffect(() => {
     fetch("/conversations", { method: "POST" })
@@ -45,18 +53,28 @@ export function App() {
     setMessages((prev) => [...prev, { role: "user", text: question }]);
     setDraft("");
     setBusy(true);
+    abortRef.current = new AbortController();
 
     try {
       const response = await fetch(`/conversations/${conversationId}/messages`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ question }),
+        signal: abortRef.current.signal,
       });
       const assistantMessage = await response.json();
       setMessages((prev) => [...prev, assistantMessage]);
+    } catch (err) {
+      if (err.name !== "AbortError") throw err;
     } finally {
       setBusy(false);
+      abortRef.current = null;
+      clearStatus(); // the SSE "answer" event also clears this, but a stopped/failed request never fires one
     }
+  }
+
+  function stop() {
+    abortRef.current?.abort();
   }
 
   return (
@@ -72,8 +90,13 @@ export function App() {
           ),
         )}
       </div>
-      <div style={{ padding: "var(--gutter)" }}>
-        <Composer value={draft} onChange={setDraft} onSubmit={submit} busy={busy} />
+      <div style={{ padding: "var(--gutter)", display: "flex", flexDirection: "column", gap: "var(--space-8)" }}>
+        {busy ? (
+          <div style={{ maxWidth: "var(--content-max)", margin: "0 auto", width: "100%" }}>
+            <StatusLine step={statusStep} />
+          </div>
+        ) : null}
+        <Composer value={draft} onChange={setDraft} onSubmit={submit} onStop={stop} busy={busy} />
       </div>
     </div>
   );

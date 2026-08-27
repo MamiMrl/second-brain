@@ -37,17 +37,20 @@ const SYSTEM_PROMPT =
 // FR-5.3 reuses offline in the LangSmith evaluator. Runs after generateAnswer()
 // produces a draft; an ungrounded draft is discarded by the caller in favor
 // of ABSTAIN_MESSAGE, never returned to the user.
-export async function isGrounded(question: string, answer: string, chunks: RetrievedChunk[]): Promise<boolean> {
+export async function isGrounded(question: string, answer: string, chunks: RetrievedChunk[], signal?: AbortSignal): Promise<boolean> {
   if (chunks.length === 0) return false;
 
   const model = new ChatAnthropic({ apiKey: env.anthropicApiKey(), model: env.claudeModel() });
   const structured = model.withStructuredOutput(groundednessSchema, { name: "groundedness_check" });
 
   const sourceSummary = chunks.map((chunk, i) => `[${i + 1}] ${chunk.text}`).join("\n\n");
-  const result = await structured.invoke([
-    { role: "system", content: SYSTEM_PROMPT },
-    { role: "user", content: `Question: ${question}\n\nAnswer: ${answer}\n\nSource chunks:\n${sourceSummary}` },
-  ]);
+  const result = await structured.invoke(
+    [
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "user", content: `Question: ${question}\n\nAnswer: ${answer}\n\nSource chunks:\n${sourceSummary}` },
+    ],
+    { signal },
+  );
 
   return result.grounded;
 }

@@ -1,5 +1,5 @@
 import type { Db } from "mongodb";
-import { answerQuery, type AskResult } from "../query/answer-query.js";
+import { answerQuery, type AskResult, type PipelineOptions } from "../query/answer-query.js";
 import { ABSTAIN_MESSAGE } from "../query/groundedness.js";
 import { appendMessage } from "./conversations.js";
 import type { ChatMessage } from "./types.js";
@@ -44,7 +44,12 @@ export function toAssistantMessage(result: AskResult): ChatTurnResult {
 // conversation and a new user message, runs the existing deterministic
 // answerQuery() pipeline unchanged and persists both the user's question and
 // the finalized assistant answer as messages on that conversation.
-export async function handleChatTurn(db: Db, conversationId: string, question: string): Promise<ChatTurnResult> {
+export async function handleChatTurn(
+  db: Db,
+  conversationId: string,
+  question: string,
+  options: PipelineOptions = {},
+): Promise<ChatTurnResult> {
   const userMessage: ChatMessage = {
     role: "user",
     text: question,
@@ -54,7 +59,7 @@ export async function handleChatTurn(db: Db, conversationId: string, question: s
   };
   await appendMessage(db, conversationId, userMessage);
 
-  const result = await answerQuery(db, question);
+  const result = await answerQuery(db, question, {}, options);
   const assistantMessage = toAssistantMessage(result);
   const { references, ...toPersist } = assistantMessage;
   await appendMessage(db, conversationId, toPersist);

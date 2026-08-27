@@ -3,6 +3,8 @@ import type { Db } from "mongodb";
 import { createChatServer } from "./server.js";
 import type { Conversation } from "./types.js";
 import type { ChatTurnResult } from "./chat-turn.js";
+import type { PipelineOptions } from "../query/answer-query.js";
+import { readSseEvents } from "./sse-test-support.js";
 
 const FAKE_DB = {} as Db;
 
@@ -63,7 +65,72 @@ describe("createChatServer", () => {
 
     expect(response.status).toBe(200);
     expect(body).toEqual(assistantMessage);
-    expect(handleChatTurn).toHaveBeenCalledWith(FAKE_DB, "conv123", "What causes complexity?");
+    expect(handleChatTurn).toHaveBeenCalledWith(
+      FAKE_DB,
+      "conv123",
+      "What causes complexity?",
+      expect.objectContaining({ signal: expect.any(AbortSignal), onStep: expect.any(Function) }),
+    );
+  });
+
+  it("streams a status event per pipeline step, then a final answer event, on the conversation's SSE stream", async () => {
+    const assistantMessage: ChatTurnResult = {
+      role: "assistant",
+      text: "Complexity is caused by dependencies and obscurity.[1]",
+      timestamp: "2026-08-26T00:00:00.000Z",
+      citedChunks: [{ documentId: "doc1", chunkIndex: 0 }],
+      references: [{ number: 1, title: "Atomic Habits", ref: "highlighted 2026-05-01", citedText: ["quote"] }],
+      pipelinePath: "deterministic",
+    };
+    const handleChatTurn = vi.fn(async (_db: Db, _id: string, _q: string, options: PipelineOptions = {}) => {
+      options.onStep?.("resolving-filters");
+      options.onStep?.("generating-answer");
+      return assistantMessage;
+    });
+    const started = await startServer({ handleChatTurn });
+    server = started.server;
+
+    const streamResponse = await fetch(`${started.baseUrl}/conversations/conv123/stream`);
+    expect(streamResponse.headers.get("content-type")).toContain("text/event-stream");
+
+    await fetch(`${started.baseUrl}/conversations/conv123/messages`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ question: "What causes complexity?" }),
+    });
+
+    const events = await readSseEvents(streamResponse, (events) => events.length >= 3);
+    expect(events).toEqual([
+      { event: "status", data: { step: "resolving-filters" } },
+      { event: "status", data: { step: "generating-answer" } },
+      { event: "answer", data: assistantMessage },
+    ]);
+  });
+
+  it("aborts the in-flight chat turn when the client disconnects mid-question", async () => {
+    let capturedSignal: AbortSignal | undefined;
+    const handleChatTurn = vi.fn((_db: Db, _id: string, _q: string, options: PipelineOptions = {}) => {
+      capturedSignal = options.signal;
+      return new Promise<ChatTurnResult>((_resolve, reject) => {
+        options.signal?.addEventListener("abort", () => reject(new Error("aborted")));
+      });
+    });
+    const started = await startServer({ handleChatTurn });
+    server = started.server;
+
+    const clientController = new AbortController();
+    const pending = fetch(`${started.baseUrl}/conversations/conv123/messages`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ question: "What causes complexity?" }),
+      signal: clientController.signal,
+    }).catch(() => {}); // the client's own fetch also rejects on abort — not what this test checks
+
+    await vi.waitFor(() => expect(handleChatTurn).toHaveBeenCalled());
+    clientController.abort();
+    await pending;
+
+    await vi.waitFor(() => expect(capturedSignal?.aborted).toBe(true));
   });
 
   it("returns 400 when the message body has no question", async () => {

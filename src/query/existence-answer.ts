@@ -24,7 +24,7 @@ const SYSTEM_PROMPT =
 // API's cited_text spans — that's FR-3.2, scoped to the standard GEN path.
 // Revisit unifying the two if ANSWER's shared citation format (PRD.md
 // §5.2) turns out to need it here too.
-export async function generateExistenceAnswer(question: string, chunks: RetrievedChunk[]): Promise<ExistenceAnswer> {
+export async function generateExistenceAnswer(question: string, chunks: RetrievedChunk[], signal?: AbortSignal): Promise<ExistenceAnswer> {
   const model = new ChatAnthropic({ apiKey: env.anthropicApiKey(), model: env.claudeModel() });
 
   const scanSummary =
@@ -32,10 +32,13 @@ export async function generateExistenceAnswer(question: string, chunks: Retrieve
       ? "(no chunks matched the bounded category)"
       : chunks.map((chunk, i) => `[${i + 1}] ${chunk.title} (${chunk.source})\n${chunk.text}`).join("\n\n");
 
-  const response = await model.invoke([
-    { role: "system", content: SYSTEM_PROMPT },
-    { role: "user", content: `Question: ${question}\n\nComplete scan result (${chunks.length} chunk(s)):\n${scanSummary}` },
-  ]);
+  const response = await model.invoke(
+    [
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "user", content: `Question: ${question}\n\nComplete scan result (${chunks.length} chunk(s)):\n${scanSummary}` },
+    ],
+    { signal },
+  );
 
   const answer = typeof response.content === "string" ? response.content : JSON.stringify(response.content);
   const sources = [...new Map(chunks.map((c) => [c.source, { title: c.title, source: c.source }])).values()];

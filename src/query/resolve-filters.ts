@@ -7,8 +7,9 @@ import type { CliFilterOverrides, QueryFilter, ResolvedQuery } from "./types.js"
 export async function resolveQueryFilters(
   question: string,
   overrides: CliFilterOverrides = {},
+  signal?: AbortSignal,
 ): Promise<ResolvedQuery> {
-  const inferred = await inferFilters(question);
+  const inferred = await inferFilters(question, signal);
 
   const filter: QueryFilter = {
     type: overrides.type ?? inferred.type,
