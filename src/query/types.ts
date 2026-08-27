@@ -17,6 +17,14 @@ export interface CliFilterOverrides {
   language?: string;
 }
 
+// Ticket #21: a prior turn's role + text only — no citedChunks/timestamp —
+// since condensation only needs the transcript, not the persistence shape
+// (chat/types.ts's ChatMessage), which query/ has no reason to depend on.
+export interface ConversationTurn {
+  role: "user" | "assistant";
+  text: string;
+}
+
 export interface ResolvedQuery {
   filter: QueryFilter;
   isExistenceQuery: boolean;
@@ -24,4 +32,10 @@ export interface ResolvedQuery {
   // LangSmith trace per FR-2.2 ("the inferred filter is logged in every
   // LangSmith trace") so the override is visible separately from inference.
   inferred: InferredFilter;
+  // Ticket #21: `question` rewritten into a standalone question against
+  // `history` (condense-then-retrieve) — equal to the original question
+  // verbatim when there's no history. Everything downstream of filter
+  // resolution (existence routing, retrieval, generation, groundedness)
+  // uses this instead of the raw per-turn question.
+  standaloneQuestion: string;
 }

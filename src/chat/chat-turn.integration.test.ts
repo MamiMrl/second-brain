@@ -26,12 +26,17 @@ describe.skipIf(!RUN)("handleChatTurn (real Mongo + real retrieval + real genera
     ({ client, db } = await connectMongo());
 
     const embeddings = new VoyageEmbeddings({ apiKey: env.voyageApiKey(), model: env.voyageModel() });
-    const text =
+    const sourdoughText =
       "Sourdough Bread v3 — ratio of flour to water is 500g flour to 375g water (75% hydration), " +
       "plus 100g starter and 10g salt.";
-    const [embedding] = await embeddings.embedDocuments([text]);
+    // Ticket #21: a second, unrelated recipe with its own salt quantity —
+    // needed so a follow-up like "how much salt does it use?" is genuinely
+    // ambiguous unless resolved against turn one, not just a lucky vector
+    // match on a single seeded document.
+    const pancakesText = "Pancakes v2 — 250g flour, 300ml milk, 2 eggs, 5g salt, 20g sugar, cooked on a hot griddle.";
+    const [sourdoughEmbedding, pancakesEmbedding] = await embeddings.embedDocuments([sourdoughText, pancakesText]);
 
-    const doc = await db.collection("documents").insertOne({
+    const sourdoughDoc = await db.collection("documents").insertOne({
       type: "recipe",
       title: "Sourdough Bread v3",
       source: `${TAG}/sourdough.md`,
@@ -40,13 +45,32 @@ describe.skipIf(!RUN)("handleChatTurn (real Mongo + real retrieval + real genera
       ingestedAt: new Date(),
       updatedAt: new Date(),
     });
-    insertedDocumentIds.push(doc.insertedId);
+    insertedDocumentIds.push(sourdoughDoc.insertedId);
     await db.collection("chunks").insertOne({
-      documentId: String(doc.insertedId),
+      documentId: String(sourdoughDoc.insertedId),
       source: `${TAG}/sourdough.md`,
       chunkIndex: 0,
-      text,
-      embedding,
+      text: sourdoughText,
+      embedding: sourdoughEmbedding,
+      createdAt: new Date().toISOString(),
+    });
+
+    const pancakesDoc = await db.collection("documents").insertOne({
+      type: "recipe",
+      title: "Pancakes v2",
+      source: `${TAG}/pancakes.md`,
+      language: "en",
+      contentHash: "test-hash-pancakes",
+      ingestedAt: new Date(),
+      updatedAt: new Date(),
+    });
+    insertedDocumentIds.push(pancakesDoc.insertedId);
+    await db.collection("chunks").insertOne({
+      documentId: String(pancakesDoc.insertedId),
+      source: `${TAG}/pancakes.md`,
+      chunkIndex: 0,
+      text: pancakesText,
+      embedding: pancakesEmbedding,
       createdAt: new Date().toISOString(),
     });
 
@@ -97,4 +121,25 @@ describe.skipIf(!RUN)("handleChatTurn (real Mongo + real retrieval + real genera
     expect(conversation?.messages).toHaveLength(2);
     expect(conversation?.messages[1].text).toBe(ABSTAIN_MESSAGE);
   }, 60_000);
+
+  // Ticket #21 acceptance criterion: a follow-up that only makes sense in
+  // context ("how much salt does it use?" — "it" isn't resolvable without
+  // turn one) must produce a correctly-scoped answer, not one confused by
+  // (or abstaining because of) the second, unrelated recipe seeded above.
+  it("resolves a follow-up that only makes sense given the previous turn", async () => {
+    const conversationId = await createConversation(db);
+
+    await handleChatTurn(db, conversationId, "What's the ratio of flour to water in my sourdough recipe?");
+
+    const followUp = await handleChatTurn(db, conversationId, "How much salt does it use?");
+
+    expect(followUp.role).toBe("assistant");
+    expect(followUp.text).not.toBe(ABSTAIN_MESSAGE);
+    expect(followUp.citedChunks.length).toBeGreaterThan(0);
+    expect(followUp.citedChunks[0].documentId).toBe(String(insertedDocumentIds[0]));
+    expect(followUp.text).toContain("10");
+
+    const conversation = await getConversation(db, conversationId);
+    expect(conversation?.messages).toHaveLength(4);
+  }, 90_000);
 });

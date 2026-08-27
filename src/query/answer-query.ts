@@ -5,7 +5,7 @@ import { retrieveChunks } from "./retriever.js";
 import { generateAnswer, type GeneratedAnswer } from "./generate-answer.js";
 import { hasRetrievalSignal, isGrounded } from "./groundedness.js";
 import type { ExistenceAnswer } from "./existence-answer.js";
-import type { CliFilterOverrides } from "./types.js";
+import type { CliFilterOverrides, ConversationTurn } from "./types.js";
 import type { RetrievedChunk } from "./retriever.js";
 
 export type AskResult =
@@ -33,29 +33,38 @@ export interface PipelineOptions {
 // then either the existence-scan path (bypasses FR-3.3, per FR-2.4) or the
 // standard retrieve+generate path, gated by FR-3.3's two inline groundedness
 // layers — layer (3), the offline LangSmith run, is FR-5.3's concern.
+//
+// Ticket #21: `history` only feeds resolveQueryFilters (condense-then-
+// retrieve). Everything after filter resolution uses `resolved
+// .standaloneQuestion` instead of the raw `question` — per
+// docs/research/chat-conversation-state.md §3, existence routing,
+// retrieval, generation, and groundedness stay single-turn, unmodified,
+// operating on whichever one standalone question this turn resolved to.
 export async function answerQuery(
   db: Db,
   question: string,
+  history: ConversationTurn[] = [],
   overrides: CliFilterOverrides = {},
   options: PipelineOptions = {},
 ): Promise<AskResult> {
   const { signal, onStep } = options;
 
   onStep?.("resolving-filters");
-  const resolved = await resolveQueryFilters(question, overrides, signal);
+  const resolved = await resolveQueryFilters(question, history, overrides, signal);
+  const { standaloneQuestion } = resolved;
 
   onStep?.("searching-documents");
-  const existence = await answerExistenceQuery(db, question, resolved, options);
+  const existence = await answerExistenceQuery(db, standaloneQuestion, resolved, options);
   if (existence) return { kind: "existence", existence };
 
-  const chunks = await retrieveChunks(db, question, resolved.filter);
+  const chunks = await retrieveChunks(db, standaloneQuestion, resolved.filter);
   if (!hasRetrievalSignal(chunks)) return { kind: "abstain", reason: "no-signal" };
 
   onStep?.("generating-answer");
-  const generated = await generateAnswer(question, chunks, signal);
+  const generated = await generateAnswer(standaloneQuestion, chunks, signal);
 
   onStep?.("checking-groundedness");
-  if (!(await isGrounded(question, generated.answer, chunks, signal))) return { kind: "abstain", reason: "ungrounded" };
+  if (!(await isGrounded(standaloneQuestion, generated.answer, chunks, signal))) return { kind: "abstain", reason: "ungrounded" };
 
   return { kind: "generated", generated, chunks };
 }

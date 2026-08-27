@@ -39,7 +39,7 @@ async function main() {
   const { client, db } = await connectMongo();
 
   try {
-    const result = await answerQuery(db, question, { type, language });
+    const result = await answerQuery(db, question, [], { type, language });
 
     if (result.kind === "abstain") {
       console.log(ABSTAIN_MESSAGE);

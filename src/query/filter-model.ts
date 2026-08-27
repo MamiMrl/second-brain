@@ -53,7 +53,10 @@ const SYSTEM_PROMPT =
 // FR-2.2: FILTER_MODEL default is a local Qwen3-8B via Ollama; swappable to
 // Haiku/others. Anthropic model ids are the one non-Ollama case this needs
 // to recognize — anything else is assumed to be a local Ollama model name.
-function buildFilterModel(): BaseChatModel {
+// Exported for reuse by condense-question.ts (ticket #21) — the follow-up
+// rewrite is the same kind of cheap query-time pre-step as filter inference,
+// so it shares the same swappable local/Claude model choice.
+export function buildFilterModel(): BaseChatModel {
   const model = env.filterModel();
   if (model.startsWith("claude-")) {
     return new ChatAnthropic({ apiKey: env.anthropicApiKey(), model });

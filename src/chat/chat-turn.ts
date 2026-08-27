@@ -1,9 +1,10 @@
 import type { Db } from "mongodb";
 import { answerQuery, type AskResult, type PipelineOptions } from "../query/answer-query.js";
 import { ABSTAIN_MESSAGE } from "../query/groundedness.js";
-import { appendMessage } from "./conversations.js";
+import { appendMessage, getConversation } from "./conversations.js";
 import type { ChatMessage } from "./types.js";
 import type { Reference } from "../query/generate-answer.js";
+import type { ConversationTurn } from "../query/types.js";
 
 // `references` is display-ready citation detail (title/ref/citedText, per
 // generate-answer.ts's Reference) for the frontend to render inline markers
@@ -40,16 +41,23 @@ export function toAssistantMessage(result: AskResult): ChatTurnResult {
   };
 }
 
-// Chat-turn orchestration entry point (ticket #19): given an existing
-// conversation and a new user message, runs the existing deterministic
-// answerQuery() pipeline unchanged and persists both the user's question and
-// the finalized assistant answer as messages on that conversation.
+// Chat-turn orchestration entry point (ticket #19, history-aware per ticket
+// #21): given an existing conversation and a new user message, reads the
+// conversation's prior messages (if any) as history for answerQuery()'s
+// filter-resolution step, then persists both the user's question and the
+// finalized assistant answer as messages on that conversation.
 export async function handleChatTurn(
   db: Db,
   conversationId: string,
   question: string,
   options: PipelineOptions = {},
 ): Promise<ChatTurnResult> {
+  const conversation = await getConversation(db, conversationId);
+  const history: ConversationTurn[] = (conversation?.messages ?? []).map((message) => ({
+    role: message.role,
+    text: message.text,
+  }));
+
   const userMessage: ChatMessage = {
     role: "user",
     text: question,
@@ -59,7 +67,7 @@ export async function handleChatTurn(
   };
   await appendMessage(db, conversationId, userMessage);
 
-  const result = await answerQuery(db, question, {}, options);
+  const result = await answerQuery(db, question, history, {}, options);
   const assistantMessage = toAssistantMessage(result);
   const { references, ...toPersist } = assistantMessage;
   await appendMessage(db, conversationId, toPersist);
