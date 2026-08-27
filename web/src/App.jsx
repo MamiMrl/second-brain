@@ -76,6 +76,7 @@ export function App() {
     setConversationId(null);
     localStorage.removeItem(LAST_CONVERSATION_KEY);
     setMessages([]);
+    syncedConversationIdRef.current = null; // otherwise reselecting the same thread later is a no-op and its history never re-syncs
   }
 
   async function submit() {
