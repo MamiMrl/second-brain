@@ -2,7 +2,7 @@ import type { Db } from "mongodb";
 import { z } from "zod";
 import { createSdkMcpServer, query, tool } from "@anthropic-ai/claude-agent-sdk";
 import { env } from "../lib/env.js";
-import { getRecentNutrition, retrieveRecipes } from "./nutrition-tools.js";
+import { buildGetRecentNutritionTool, retrieveRecipes } from "./nutrition-tools.js";
 
 const NUTRITION_MCP_SERVER = "nutrition";
 const RETRIEVE_RECIPES_TOOL = "mcp__nutrition__retrieveRecipes";
@@ -47,15 +47,7 @@ function buildNutritionServer(db: Db) {
           return { content: [{ type: "text", text: JSON.stringify(results) }] };
         },
       ),
-      tool(
-        "getRecentNutrition",
-        "Get the user's logged nutrition intake for recent days — macros and foods eaten per day, most recent first.",
-        { days: z.number().int().positive().describe("how many days back to look, e.g. 7") },
-        async ({ days }) => {
-          const recent = await getRecentNutrition(db, days);
-          return { content: [{ type: "text", text: JSON.stringify(recent) }] };
-        },
-      ),
+      buildGetRecentNutritionTool(db),
     ],
   });
 }

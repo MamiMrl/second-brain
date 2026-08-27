@@ -1,4 +1,6 @@
 import type { Db } from "mongodb";
+import { z } from "zod";
+import { tool, type SdkMcpToolDefinition } from "@anthropic-ai/claude-agent-sdk";
 import { retrieveChunks, type RetrievedChunk } from "../query/retriever.js";
 
 const DEFAULT_RECENCY_DAYS = 7;
@@ -51,4 +53,19 @@ export async function getRecentNutrition(db: Db, days: number = DEFAULT_RECENCY_
     fat: chunk.fat,
     foods: chunk.foods,
   }));
+}
+
+// Shared tool definition for getRecentNutrition, built once here and reused
+// by both nutrition-agent.ts and chat-agent.ts (ticket #24) — same tool,
+// same description, one place to change either.
+export function buildGetRecentNutritionTool(db: Db): SdkMcpToolDefinition<any> {
+  return tool(
+    "getRecentNutrition",
+    "Get the user's logged nutrition intake for recent days — macros and foods eaten per day, most recent first.",
+    { days: z.number().int().positive().describe("how many days back to look, e.g. 7") },
+    async ({ days }) => {
+      const recent = await getRecentNutrition(db, days);
+      return { content: [{ type: "text", text: JSON.stringify(recent) }] };
+    },
+  );
 }

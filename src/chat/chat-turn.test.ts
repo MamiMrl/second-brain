@@ -61,4 +61,11 @@ describe("toAssistantMessage", () => {
     expect(message.references).toEqual(references);
     expect(message.pipelinePath).toBe("deterministic");
   });
+
+  it("tags the message with the given pipelinePath, for the agentic path's turns", () => {
+    const result: AskResult = { kind: "abstain", reason: "ungrounded" };
+    const message = toAssistantMessage(result, "agentic");
+
+    expect(message.pipelinePath).toBe("agentic");
+  });
 });

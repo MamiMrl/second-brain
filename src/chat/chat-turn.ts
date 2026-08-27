@@ -2,10 +2,12 @@ import type { Db } from "mongodb";
 import { answerQuery, type AskResult, type PipelineOptions } from "../query/answer-query.js";
 import { ABSTAIN_MESSAGE } from "../query/groundedness.js";
 import { appendMessage, getConversation } from "./conversations.js";
-import type { ChatMessage } from "./types.js";
+import type { ChatMessage, PipelinePath } from "./types.js";
 import type { Reference } from "../query/generate-answer.js";
 import type { ConversationTurn } from "../query/types.js";
 import { reflectOnTurn } from "../memory/reflect.js";
+import { resolveChatRoute } from "../agent/router.js";
+import { answerChatAgentically } from "../agent/chat-agent.js";
 
 // `references` is display-ready citation detail (title/ref/citedText, per
 // generate-answer.ts's Reference) for the frontend to render inline markers
@@ -22,9 +24,9 @@ export interface ChatTurnResult extends ChatMessage {
 // results carry no citedChunks/references — existence already has its own,
 // differently shaped citation format (existence-answer.ts), and abstain has
 // no chunks to cite by definition.
-export function toAssistantMessage(result: AskResult): ChatTurnResult {
+export function toAssistantMessage(result: AskResult, pipelinePath: PipelinePath = "deterministic"): ChatTurnResult {
   const timestamp = new Date().toISOString();
-  const base = { role: "assistant" as const, timestamp, pipelinePath: "deterministic" as const };
+  const base = { role: "assistant" as const, timestamp, pipelinePath };
 
   if (result.kind === "abstain") {
     return { ...base, text: ABSTAIN_MESSAGE, citedChunks: [], references: [] };
@@ -68,8 +70,16 @@ export async function handleChatTurn(
   };
   await appendMessage(db, conversationId, userMessage);
 
-  const result = await answerQuery(db, question, history, {}, options);
-  const assistantMessage = toAssistantMessage(result);
+  // Ticket #24: a lightweight router (mirroring the ROUTE decision point in
+  // answer-query.ts, one level up) decides between the deterministic
+  // single-pass pipeline and the agentic multi-domain entry point, added
+  // alongside it rather than replacing it.
+  const route = await resolveChatRoute(question, options.signal);
+  const result =
+    route === "agentic"
+      ? await answerChatAgentically(db, conversationId, question, history, options)
+      : await answerQuery(db, question, history, {}, options);
+  const assistantMessage = toAssistantMessage(result, route);
   const { references, ...toPersist } = assistantMessage;
   await appendMessage(db, conversationId, toPersist);
 
