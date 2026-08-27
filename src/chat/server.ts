@@ -2,7 +2,11 @@ import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import type { Db } from "mongodb";
-import { createConversation as realCreateConversation, getConversation as realGetConversation } from "./conversations.js";
+import {
+  createConversation as realCreateConversation,
+  getConversation as realGetConversation,
+  listConversations as realListConversations,
+} from "./conversations.js";
 import { handleChatTurn as realHandleChatTurn } from "./chat-turn.js";
 import type { PipelineStep } from "../query/answer-query.js";
 
@@ -11,6 +15,7 @@ export interface ChatServerDeps {
   createConversation?: typeof realCreateConversation;
   handleChatTurn?: typeof realHandleChatTurn;
   getConversation?: typeof realGetConversation;
+  listConversations?: typeof realListConversations;
   // Directory holding the built frontend static bundle, served for any
   // request that isn't one of the API routes below. Omitted in tests, which
   // only exercise the API routes.
@@ -72,11 +77,15 @@ function broadcastToConversation(subscribersByConversation: Map<string, Set<http
 // starts, then a final "answer" event carrying the same message the POST
 // response returns. The answer itself is still delivered whole in the POST
 // response — only status updates stream live, per #13/#17's decision.
+// Ticket #22 adds GET /conversations (the sidebar's recent-conversations
+// list) so a reload or a later visit can restore prior conversations
+// instead of only ever starting a new one.
 export function createChatServer(deps: ChatServerDeps): http.Server {
   const db = deps.db;
   const createConversation = deps.createConversation ?? realCreateConversation;
   const handleChatTurn = deps.handleChatTurn ?? realHandleChatTurn;
   const getConversation = deps.getConversation ?? realGetConversation;
+  const listConversations = deps.listConversations ?? realListConversations;
 
   const streamsByConversation = new Map<string, Set<http.ServerResponse>>();
   // The most recent status step per conversation, so a client that opens
@@ -95,6 +104,12 @@ export function createChatServer(deps: ChatServerDeps): http.Server {
         if (req.method === "POST" && segments.length === 1 && segments[0] === "conversations") {
           const conversationId = await createConversation(db);
           sendJson(res, 201, { conversationId });
+          return;
+        }
+
+        if (req.method === "GET" && segments.length === 1 && segments[0] === "conversations") {
+          const summaries = await listConversations(db);
+          sendJson(res, 200, summaries);
           return;
         }
 

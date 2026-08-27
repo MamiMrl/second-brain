@@ -28,3 +28,13 @@ export interface Conversation {
   createdAt: string;
   updatedAt: string;
 }
+
+// Ticket #22: list-view row for the sidebar's recent-conversations list —
+// deliberately excludes `messages` (fetched separately per conversation via
+// GET /conversations/:id) to keep the list endpoint cheap regardless of how
+// long individual conversations get.
+export interface ConversationSummary {
+  _id: string;
+  title: string;
+  updatedAt: string;
+}
