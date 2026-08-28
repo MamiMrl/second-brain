@@ -58,3 +58,16 @@ with `ipconfig getifaddr en0` (or the relevant interface) if you want to try
 connecting from itself over that address rather than `127.0.0.1` — that
 connection should also fail, since the socket is only bound to the loopback
 address, not to the LAN-facing interface.
+
+## Accessing the app today: browser only
+
+There is currently no native macOS app — the frontend (`web/`) is a plain
+browser SPA served by this service, opened at `http://127.0.0.1:4319` in a
+regular browser tab. Wrapping it in a native WKWebView window via Tauri was
+deliberately deferred out of scope when this chat app was designed (see
+[#8](https://github.com/MamiMrl/second-brain/issues/8)'s "Out of scope"),
+and is tracked separately as [#34](https://github.com/MamiMrl/second-brain/issues/34).
+The frontend stack (React + Vite, not Next.js) was chosen specifically so
+that future wrapping can reuse this code without a rewrite — see
+[#14](https://github.com/MamiMrl/second-brain/issues/14) — but the Tauri
+shell itself doesn't exist yet.
