@@ -1,4 +1,7 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import type { Db } from "mongodb";
 import { createChatServer } from "./server.js";
 import type { Conversation, ConversationSummary } from "./types.js";
@@ -185,5 +188,25 @@ describe("createChatServer", () => {
 
     const response = await fetch(`${started.baseUrl}/nope`);
     expect(response.status).toBe(404);
+  });
+
+  // Browsers enforce strict MIME-type checking on <script type="module">:
+  // serving JS with no/wrong content-type silently blocks it from
+  // executing, producing a blank page with no console error at all.
+  it("serves static JS/CSS with a browser-correct content-type", async () => {
+    const staticDir = fs.mkdtempSync(path.join(os.tmpdir(), "chat-static-"));
+    fs.writeFileSync(path.join(staticDir, "app.js"), "export const x = 1;");
+    fs.writeFileSync(path.join(staticDir, "app.css"), "body { color: red; }");
+
+    const started = await startServer({ staticDir });
+    server = started.server;
+
+    const jsResponse = await fetch(`${started.baseUrl}/app.js`);
+    expect(jsResponse.headers.get("content-type")).toContain("text/javascript");
+
+    const cssResponse = await fetch(`${started.baseUrl}/app.css`);
+    expect(cssResponse.headers.get("content-type")).toContain("text/css");
+
+    fs.rmSync(staticDir, { recursive: true, force: true });
   });
 });

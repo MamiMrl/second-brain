@@ -36,6 +36,21 @@ async function readJsonBody(req: http.IncomingMessage): Promise<unknown> {
   return JSON.parse(Buffer.concat(chunks).toString("utf8"));
 }
 
+// Browsers enforce strict MIME-type checking on `<script type="module">` —
+// serving JS with no/wrong content-type silently blocks it from executing,
+// leaving a blank page with no console error at all.
+const STATIC_CONTENT_TYPES: Record<string, string> = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".mjs": "text/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".ico": "image/x-icon",
+  ".woff2": "font/woff2",
+};
+
 function serveStatic(staticDir: string, urlPath: string, res: http.ServerResponse) {
   const filePath = path.join(staticDir, urlPath === "/" ? "index.html" : urlPath);
   const relative = path.relative(staticDir, filePath);
@@ -50,7 +65,8 @@ function serveStatic(staticDir: string, urlPath: string, res: http.ServerRespons
       res.end();
       return;
     }
-    res.writeHead(200);
+    const contentType = STATIC_CONTENT_TYPES[path.extname(filePath)] ?? "application/octet-stream";
+    res.writeHead(200, { "content-type": contentType });
     res.end(data);
   });
 }
