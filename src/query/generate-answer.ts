@@ -78,7 +78,13 @@ function renderAnswer(blocks: Anthropic.TextBlock[], chunks: RetrievedChunk[]): 
 // (anthropicResponseToChatMessages) collapses a single-text-block response
 // to a plain string, silently dropping its `citations` array — a real risk
 // for short, single-citation answers, which are a common shape here.
-export async function generateAnswer(question: string, chunks: RetrievedChunk[], signal?: AbortSignal): Promise<GeneratedAnswer> {
+//
+// `memoryPrompt` is ticket #23's system-prompt prepend (docs/research/
+// user-memory-layer.md §3): the caller's rendered MEMORY.md-style block
+// (memory-store.ts's formatMemoryPrompt), prepended ahead of SYSTEM_PROMPT
+// when there's anything durable to inject. Empty/omitted is a no-op — the
+// prompt is unchanged from before this ticket.
+export async function generateAnswer(question: string, chunks: RetrievedChunk[], memoryPrompt = "", signal?: AbortSignal): Promise<GeneratedAnswer> {
   const client = new Anthropic({ apiKey: env.anthropicApiKey() });
 
   const documents: Anthropic.DocumentBlockParam[] = chunks.map((chunk) => ({
@@ -88,11 +94,13 @@ export async function generateAnswer(question: string, chunks: RetrievedChunk[],
     citations: { enabled: true },
   }));
 
+  const system = memoryPrompt ? `${SYSTEM_PROMPT}\n\n${memoryPrompt}` : SYSTEM_PROMPT;
+
   const response = await client.messages.create(
     {
       model: env.claudeModel(),
       max_tokens: MAX_TOKENS,
-      system: SYSTEM_PROMPT,
+      system,
       messages: [{ role: "user", content: [...documents, { type: "text", text: question }] }],
     },
     { signal },

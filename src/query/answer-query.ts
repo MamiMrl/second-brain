@@ -4,6 +4,7 @@ import { answerExistenceQuery } from "./answer-existence-query.js";
 import { retrieveChunks } from "./retriever.js";
 import { generateAnswer, type GeneratedAnswer } from "./generate-answer.js";
 import { hasRetrievalSignal, isGrounded } from "./groundedness.js";
+import { readMemoryPrompt } from "../memory/memory-store.js";
 import type { ExistenceAnswer } from "./existence-answer.js";
 import type { CliFilterOverrides, ConversationTurn } from "./types.js";
 import type { RetrievedChunk } from "./retriever.js";
@@ -61,7 +62,11 @@ export async function answerQuery(
   if (!hasRetrievalSignal(chunks)) return { kind: "abstain", reason: "no-signal" };
 
   onStep?.("generating-answer");
-  const generated = await generateAnswer(standaloneQuestion, chunks, signal);
+  // Ticket #23: system-prompt prepend of durable, synthesized facts about
+  // the user — no new retrieval step, per docs/research/user-memory-layer
+  // .md §3 (kept separate from retrieveChunks()'s vector search above).
+  const memoryPrompt = await readMemoryPrompt(db);
+  const generated = await generateAnswer(standaloneQuestion, chunks, memoryPrompt, signal);
 
   onStep?.("checking-groundedness");
   if (!(await isGrounded(standaloneQuestion, generated.answer, chunks, signal))) return { kind: "abstain", reason: "ungrounded" };

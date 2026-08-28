@@ -13,9 +13,11 @@ import { findNutritionPair } from "./pair-nutrition.js";
 import { upsertDocument } from "./upsert-document.js";
 import { MongoRecordManager } from "./record-manager.js";
 import { IngestError } from "./errors.js";
+import { extractFromDocument } from "../memory/extract.js";
 import type { DocumentType, LoadedDocument } from "./types.js";
 
 export const CHUNKS_VECTOR_INDEX = "chunks_vector_index";
+const MEMORY_EXTRACTION_CHAR_LIMIT = 6000;
 
 export interface IngestSummary extends Awaited<ReturnType<typeof index>> {
   filesProcessed: number;
@@ -96,6 +98,17 @@ export async function runIngest({ inputPath, typeOverride }: RunIngestOptions): 
     const allChunkDocs: Document[] = [];
     for (const { loaded } of parsed) {
       const documentId = await upsertDocument(db, loaded.document);
+
+      // Ticket #23's post-ingestion extraction trigger — the trigger point
+      // none of the researched consumer memory products need but
+      // second-brain does, since a lot of "who the user is" enters through
+      // ingestion rather than chat (docs/research/user-memory-layer.md §1).
+      // Capped to the first MEMORY_EXTRACTION_CHAR_LIMIT chars: extraction
+      // looks for a durable pattern, not exhaustive coverage of a long
+      // document, and this keeps the judge call's cost bounded.
+      const documentText = loaded.chunks.map((chunk) => chunk.text).join("\n\n").slice(0, MEMORY_EXTRACTION_CHAR_LIMIT);
+      await extractFromDocument(db, documentId, loaded.document.title, documentText);
+
       loaded.chunks.forEach((chunk, chunkIndex) => {
         // Only defined fields are included — MongoDBAtlasVectorSearch spreads
         // this object directly into the stored chunk document, so an
