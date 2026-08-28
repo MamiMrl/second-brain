@@ -1,10 +1,16 @@
 import React from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Composer } from "./components/chat/Composer.jsx";
 import { AnswerBody } from "./components/chat/AnswerBody.jsx";
 import { SourceList } from "./components/chat/SourceList.jsx";
 import { StatusLine } from "./components/chat/StatusLine.jsx";
+import { Sidebar } from "./components/chat/Sidebar.jsx";
 import { useChatStatusStore } from "./stores/chatStatus.js";
 import { useChatStream } from "./stores/useChatStream.js";
+import { useConversationList, useConversation } from "./hooks/useConversations.js";
+import { useDraft } from "./hooks/useDraft.js";
+
+const LAST_CONVERSATION_KEY = "sb:lastConversationId";
 
 // The backend's Reference shape (query/generate-answer.ts) carries
 // `citedText: string[]` (one entry per distinct cited span); the design
@@ -24,15 +30,18 @@ function AnswerMessage({ message }) {
   );
 }
 
-// Ticket #19's walking skeleton: real conversation persistence + a real
-// grounded, cited answer, wired to the existing design-system components —
-// no new UI built here, just real data flowing through Composer/AnswerBody/
-// SourceList. Streaming status (#20), conversation history (#22), and a
-// full app shell (Sidebar/MessageThread) are later tickets.
+// Ticket #19's walking skeleton laid down conversation persistence + a real
+// grounded, cited answer. Ticket #22 adds: a sidebar listing past
+// conversations (GET /conversations), restoring a selected one's messages
+// (GET /conversations/:id) instead of always starting blank, and a
+// client-persisted composer draft that survives a reload or tab close.
+// Conversations are created lazily — on first send, not on page load — so
+// reloading the app never litters the sidebar with empty threads.
 export function App() {
-  const [conversationId, setConversationId] = React.useState(null);
+  const queryClient = useQueryClient();
+  const [conversationId, setConversationId] = React.useState(() => localStorage.getItem(LAST_CONVERSATION_KEY));
   const [messages, setMessages] = React.useState([]);
-  const [draft, setDraft] = React.useState("");
+  const [draft, setDraft, clearDraft] = useDraft(conversationId);
   const [busy, setBusy] = React.useState(false);
   const abortRef = React.useRef(null);
 
@@ -40,23 +49,57 @@ export function App() {
   const clearStatus = useChatStatusStore((state) => state.clear);
   useChatStream(conversationId);
 
+  const conversationList = useConversationList();
+  const activeConversation = useConversation(conversationId);
+  // Tracks which conversation's server data has already been applied to
+  // `messages`, so a background refetch (or the fetch triggered by a
+  // conversation this tab itself just created mid-submit) never clobbers
+  // messages appended optimistically during an in-flight send.
+  const syncedConversationIdRef = React.useRef(null);
+
+  // Restores the selected conversation's transcript once per switch — on
+  // initial load (resuming the last active thread) and on switching threads
+  // via the sidebar.
   React.useEffect(() => {
-    fetch("/conversations", { method: "POST" })
-      .then((res) => res.json())
-      .then((body) => setConversationId(body.conversationId));
-  }, []);
+    if (activeConversation.data && syncedConversationIdRef.current !== conversationId) {
+      setMessages(activeConversation.data.messages);
+      syncedConversationIdRef.current = conversationId;
+    }
+  }, [activeConversation.data, conversationId]);
+
+  function selectThread(id) {
+    setConversationId(id);
+    localStorage.setItem(LAST_CONVERSATION_KEY, id);
+  }
+
+  function newThread() {
+    setConversationId(null);
+    localStorage.removeItem(LAST_CONVERSATION_KEY);
+    setMessages([]);
+    syncedConversationIdRef.current = null; // otherwise reselecting the same thread later is a no-op and its history never re-syncs
+  }
 
   async function submit() {
     const question = draft.trim();
-    if (!question || busy || !conversationId) return;
+    if (!question || busy) return;
+
+    let activeId = conversationId;
+    if (!activeId) {
+      const response = await fetch("/conversations", { method: "POST" });
+      const body = await response.json();
+      activeId = body.conversationId;
+      syncedConversationIdRef.current = activeId; // freshly created here — nothing to fetch-and-merge
+      setConversationId(activeId);
+      localStorage.setItem(LAST_CONVERSATION_KEY, activeId);
+    }
 
     setMessages((prev) => [...prev, { role: "user", text: question }]);
-    setDraft("");
+    clearDraft();
     setBusy(true);
     abortRef.current = new AbortController();
 
     try {
-      const response = await fetch(`/conversations/${conversationId}/messages`, {
+      const response = await fetch(`/conversations/${activeId}/messages`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ question }),
@@ -64,6 +107,7 @@ export function App() {
       });
       const assistantMessage = await response.json();
       setMessages((prev) => [...prev, assistantMessage]);
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
     } catch (err) {
       if (err.name !== "AbortError") throw err;
     } finally {
@@ -78,25 +122,33 @@ export function App() {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
-      <div style={{ flex: 1, overflowY: "auto", padding: "var(--gutter)", display: "flex", flexDirection: "column", gap: "var(--message-gap)" }}>
-        {messages.map((message, i) =>
-          message.role === "user" ? (
-            <div key={i} style={{ alignSelf: "flex-end", maxWidth: "var(--content-max)", padding: "10px 14px", background: "var(--surface-bubble)", borderRadius: "var(--radius-bubble)" }}>
-              {message.text}
+    <div style={{ display: "flex", height: "100vh" }}>
+      <Sidebar
+        threads={conversationList.data ?? []}
+        activeConversationId={conversationId}
+        onSelectThread={selectThread}
+        onNewThread={newThread}
+      />
+      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+        <div style={{ flex: 1, overflowY: "auto", padding: "var(--gutter)", display: "flex", flexDirection: "column", gap: "var(--message-gap)" }}>
+          {messages.map((message, i) =>
+            message.role === "user" ? (
+              <div key={i} style={{ alignSelf: "flex-end", maxWidth: "var(--content-max)", padding: "10px 14px", background: "var(--surface-bubble)", borderRadius: "var(--radius-bubble)" }}>
+                {message.text}
+              </div>
+            ) : (
+              <AnswerMessage key={i} message={message} />
+            ),
+          )}
+        </div>
+        <div style={{ padding: "var(--gutter)", display: "flex", flexDirection: "column", gap: "var(--space-8)" }}>
+          {busy ? (
+            <div style={{ maxWidth: "var(--content-max)", margin: "0 auto", width: "100%" }}>
+              <StatusLine step={statusStep} />
             </div>
-          ) : (
-            <AnswerMessage key={i} message={message} />
-          ),
-        )}
-      </div>
-      <div style={{ padding: "var(--gutter)", display: "flex", flexDirection: "column", gap: "var(--space-8)" }}>
-        {busy ? (
-          <div style={{ maxWidth: "var(--content-max)", margin: "0 auto", width: "100%" }}>
-            <StatusLine step={statusStep} />
-          </div>
-        ) : null}
-        <Composer value={draft} onChange={setDraft} onSubmit={submit} onStop={stop} busy={busy} />
+          ) : null}
+          <Composer value={draft} onChange={setDraft} onSubmit={submit} onStop={stop} busy={busy} />
+        </div>
       </div>
     </div>
   );

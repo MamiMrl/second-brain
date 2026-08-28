@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
 import type { Db } from "mongodb";
 import { createChatServer } from "./server.js";
-import type { Conversation } from "./types.js";
+import type { Conversation, ConversationSummary } from "./types.js";
 import type { ChatTurnResult } from "./chat-turn.js";
 import type { PipelineOptions } from "../query/answer-query.js";
 import { readSseEvents } from "./sse-test-support.js";
@@ -14,6 +14,7 @@ async function startServer(deps: Partial<Parameters<typeof createChatServer>[0]>
     createConversation: vi.fn().mockResolvedValue("conv123"),
     handleChatTurn: vi.fn(),
     getConversation: vi.fn(),
+    listConversations: vi.fn().mockResolvedValue([]),
     ...deps,
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -162,6 +163,20 @@ describe("createChatServer", () => {
 
     expect(response.status).toBe(200);
     expect(body).toEqual(conversation);
+  });
+
+  it("GET /conversations returns the conversation list", async () => {
+    const summaries: ConversationSummary[] = [{ _id: "conv123", title: "What causes complexity?", updatedAt: "2026-08-26T00:00:00.000Z" }];
+    const listConversations = vi.fn().mockResolvedValue(summaries);
+    const started = await startServer({ listConversations });
+    server = started.server;
+
+    const response = await fetch(`${started.baseUrl}/conversations`);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual(summaries);
+    expect(listConversations).toHaveBeenCalledWith(FAKE_DB);
   });
 
   it("returns 404 for an unknown route", async () => {
