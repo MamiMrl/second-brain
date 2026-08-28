@@ -11,7 +11,9 @@
     "ingest": "tsx src/scripts/ingest.ts",
     "ask": "tsx src/scripts/ask.ts",
     "nutrition-suggest": "tsx src/scripts/nutrition-suggest.ts",
-    "chat-server": "tsx src/scripts/chat-server.ts"
+    "chat-server": "tsx src/scripts/chat-server.ts",
+    "launchd:install": "tsx src/scripts/launchd-install.ts",
+    "launchd:uninstall": "tsx src/scripts/launchd-uninstall.ts"
   },
   "repository": {
     "type": "git",
