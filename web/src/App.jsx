@@ -130,16 +130,29 @@ export function App() {
         onNewThread={newThread}
       />
       <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
-        <div style={{ flex: 1, overflowY: "auto", padding: "var(--gutter)", display: "flex", flexDirection: "column", gap: "var(--message-gap)" }}>
-          {messages.map((message, i) =>
-            message.role === "user" ? (
-              <div key={i} style={{ alignSelf: "flex-end", maxWidth: "var(--content-max)", padding: "10px 14px", background: "var(--surface-bubble)", borderRadius: "var(--radius-bubble)" }}>
-                {message.text}
-              </div>
-            ) : (
-              <AnswerMessage key={i} message={message} />
-            ),
-          )}
+        <div style={{ flex: 1, overflowY: "auto", padding: "var(--gutter)", display: "flex", flexDirection: "column", alignItems: "center" }}>
+          <div style={{ width: "100%", maxWidth: "var(--content-max)", display: "flex", flexDirection: "column", gap: "var(--message-gap)" }}>
+            {messages.map((message, i) =>
+              message.role === "user" ? (
+                <div
+                  key={i}
+                  style={{
+                    alignSelf: "flex-end",
+                    maxWidth: "75%",
+                    padding: "12px 18px",
+                    fontSize: "var(--text-base)",
+                    lineHeight: "var(--leading-bubble)",
+                    background: "var(--surface-bubble)",
+                    borderRadius: "var(--radius-bubble)",
+                  }}
+                >
+                  {message.text}
+                </div>
+              ) : (
+                <AnswerMessage key={i} message={message} />
+              ),
+            )}
+          </div>
         </div>
         <div style={{ padding: "var(--gutter)", display: "flex", flexDirection: "column", gap: "var(--space-8)" }}>
           {busy ? (
